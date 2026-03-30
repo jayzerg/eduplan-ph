@@ -122,7 +122,7 @@ def parse_markdown_lines(md_content: str) -> list:
     return lines
 
 
-def export_to_docx(content: str, topic: str, grade_level: str, subject: str) -> bytes:
+def export_to_docx(content: str, topic: str, grade_level: str, subject: str, curriculum_label: str = "") -> bytes:
     """
     Generate a properly formatted Word document from the lesson plan content.
     Produces a clean, professional DepEd DLP format.
@@ -152,6 +152,16 @@ def export_to_docx(content: str, topic: str, grade_level: str, subject: str) -> 
     )
     meta_run.font.size = Pt(10)
     meta_run.font.color.rgb = RGBColor(100, 100, 100)
+
+    # Curriculum alignment label
+    if curriculum_label:
+        cv_para = doc.add_paragraph()
+        cv_para.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        cv_para.paragraph_format.space_after = Pt(4)
+        cv_run = cv_para.add_run(curriculum_label)
+        cv_run.font.size = Pt(9)
+        cv_run.font.italic = True
+        cv_run.font.color.rgb = RGBColor(13, 115, 119)  # Teal for MATATAG
 
     # Thin line separator
     doc.add_paragraph('_' * 80).alignment = WD_ALIGN_PARAGRAPH.CENTER
@@ -259,7 +269,7 @@ def _add_formatted_run(para, prefix: str, text: str, font_size=None):
             run.font.size = font_size
 
 
-def export_to_pdf(content: str, topic: str, grade_level: str, subject: str) -> bytes:
+def export_to_pdf(content: str, topic: str, grade_level: str, subject: str, curriculum_label: str = "") -> bytes:
     """
     Generate a PDF document from the lesson plan content.
     Matches the DOCX alignment and formatting exactly.
@@ -282,6 +292,13 @@ def export_to_pdf(content: str, topic: str, grade_level: str, subject: str) -> b
     meta = f"Subject: {subject}  |  Grade Level: {grade_level}  |  Topic: {topic}"
     pdf.cell(0, 7, sanitize_for_pdf(meta), ln=True, align="C")
     pdf.set_text_color(0, 0, 0)
+
+    # Curriculum alignment label
+    if curriculum_label:
+        pdf.set_font("Helvetica", "I", 8)
+        pdf.set_text_color(13, 115, 119)  # Teal
+        pdf.cell(0, 5, sanitize_for_pdf(curriculum_label), ln=True, align="C")
+        pdf.set_text_color(0, 0, 0)
 
     # Separator
     pdf.set_draw_color(180, 180, 180)

@@ -27,12 +27,17 @@ def initialize_llm(api_key: str, model: str):
     """
     Initialize OpenRouter LLM via LangChain ChatOpenAI.
     Passes the API key directly to the constructor for compatibility
-    with newer langchain-openai versions.
+    with newer langchain-openai versions. It includes default_headers 
+    which are strictly required by OpenRouter for free tier models.
     """
     return ChatOpenAI(
         model=model,
         api_key=api_key,
         base_url=OPENROUTER_API_BASE,
+        default_headers={
+            "HTTP-Referer": "http://localhost:8501", # Your local/production domain
+            "X-Title": "EduPlan PH" # Your app name
+        },
         temperature=0.7,
         timeout=60,
     )
@@ -141,10 +146,18 @@ def generate_topic_suggestions(
         }
 
     except Exception as e:
+        error_str = str(e)
+        user_friendly_error = error_str
+        
+        if "401" in error_str and "User not found" in error_str:
+            user_friendly_error = "Authentication failed (401 - User not found). Please verify your OpenRouter API key in .env or Streamlit Secrets is valid and active."
+        elif "401" in error_str:
+            user_friendly_error = "API Key error (401). Please verify your OpenRouter credentials."
+        
         return {
             "success": False,
             "suggestions": [],
-            "error": str(e)
+            "error": user_friendly_error
         }
 
 
@@ -155,7 +168,8 @@ def generate_lesson_plan(
     language: str,
     additional_notes: str,
     api_key: str,
-    model: str
+    model: str,
+    curriculum_version: str = "K-12 Standard"
 ) -> dict:
     """
     Generate a complete lesson plan using OpenRouter LLM.
@@ -168,12 +182,13 @@ def generate_lesson_plan(
             "structure_complete": False,
             "missing_sections": [],
             "provider_used": "OpenRouter",
+            "curriculum_version": curriculum_version,
             "error": "No OpenRouter API key found. Please configure your API key."
         }
 
     try:
         llm = initialize_llm(api_key, model)
-        prompt = get_lesson_plan_prompt()
+        prompt = get_lesson_plan_prompt(curriculum_version)
         chain = prompt | llm | StrOutputParser()
 
         response = chain.invoke({
@@ -194,10 +209,19 @@ def generate_lesson_plan(
             "structure_complete": structure_check["complete"],
             "missing_sections": structure_check["missing_sections"],
             "provider_used": "OpenRouter",
+            "curriculum_version": curriculum_version,
             "error": None
         }
 
     except Exception as e:
+        error_str = str(e)
+        user_friendly_error = error_str
+        
+        if "401" in error_str and "User not found" in error_str:
+            user_friendly_error = "Authentication failed (401 - User not found). Please verify your OpenRouter API key in .env or Streamlit Secrets is valid and active."
+        elif "401" in error_str:
+            user_friendly_error = "API Key error (401). Please verify your OpenRouter credentials."
+            
         return {
             "success": False,
             "content": None,
@@ -205,5 +229,6 @@ def generate_lesson_plan(
             "structure_complete": False,
             "missing_sections": [],
             "provider_used": "OpenRouter",
-            "error": str(e)
+            "curriculum_version": curriculum_version,
+            "error": user_friendly_error
         }

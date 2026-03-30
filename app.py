@@ -20,7 +20,9 @@ from utils import export_to_docx, export_to_pdf, export_quiz_to_csv
 from config import (
     GRADE_LEVELS, SUBJECTS, LANGUAGES, 
     PROVIDER_MODELS, DEFAULT_MODEL,
-    APP_TITLE, APP_ICON, APP_EMOJI, APP_VERSION
+    APP_TITLE, APP_ICON, APP_EMOJI, APP_VERSION,
+    CURRICULUM_VERSIONS, MATATAG_SUBJECTS, MATATAG_HELPER_TEXT,
+    CURRICULUM_ALIGNMENT_LABELS
 )
 from validators import validate_inputs, get_api_key_for_provider, get_available_api_keys
 
@@ -521,6 +523,53 @@ st.markdown("""
         background: rgba(184, 151, 59, 0.25);
         color: var(--acad-navy);
     }
+
+    /* ── MATATAG Curriculum Badge ────────────────────────── */
+    .matatag-badge {
+        display: inline-block;
+        background: linear-gradient(135deg, #0D7377 0%, #14919B 100%);
+        color: #FAF8F3 !important;
+        font-family: 'Inter', sans-serif !important;
+        font-size: 0.72rem;
+        font-weight: 600;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+        padding: 0.3rem 0.8rem;
+        border-radius: 4px;
+        margin-top: 0.4rem;
+        box-shadow: 0 2px 6px rgba(13, 115, 119, 0.25);
+    }
+    .matatag-badge-sidebar {
+        display: inline-block;
+        background: linear-gradient(135deg, #0D7377 0%, #14919B 100%);
+        color: #FAF8F3 !important;
+        font-family: 'Inter', sans-serif !important;
+        font-size: 0.68rem;
+        font-weight: 600;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+        padding: 0.25rem 0.7rem;
+        border-radius: 4px;
+        margin-top: 0.3rem;
+        box-shadow: 0 2px 6px rgba(13, 115, 119, 0.25);
+    }
+    .curriculum-badge {
+        display: inline-block;
+        background: linear-gradient(135deg, var(--acad-navy) 0%, var(--acad-oxford) 100%);
+        color: #FAF8F3 !important;
+        font-family: 'Inter', sans-serif !important;
+        font-size: 0.78rem;
+        font-weight: 600;
+        letter-spacing: 0.04em;
+        padding: 0.35rem 1rem;
+        border-radius: 4px;
+        margin-bottom: 0.8rem;
+        box-shadow: 0 2px 6px rgba(27, 42, 74, 0.15);
+    }
+    .curriculum-badge.matatag-active {
+        background: linear-gradient(135deg, #0D7377 0%, #14919B 100%);
+        box-shadow: 0 2px 6px rgba(13, 115, 119, 0.2);
+    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -543,12 +592,41 @@ def _md_inline(text: str) -> str:
     text = re.sub(r'\*(.+?)\*', r'<em>\1</em>', text)
     return text
 
+# Initialize session state variables
+if "generated_plan" not in st.session_state:
+    st.session_state.generated_plan = None
+if "generation_time" not in st.session_state:
+    st.session_state.generation_time = None
+if "curriculum_version" not in st.session_state:
+    st.session_state.curriculum_version = "K-12 Standard"
 
 with st.sidebar:
     st.header("Configuration")
     st.subheader("Lesson Details")
     grade_level = st.selectbox("Grade Level", GRADE_LEVELS, index=1)
-    subject = st.selectbox("Subject", SUBJECTS, index=3)
+
+    # Curriculum Version Toggle
+    st.subheader("Curriculum Version")
+    curriculum_version = st.radio(
+        "Curriculum",
+        CURRICULUM_VERSIONS,
+        index=CURRICULUM_VERSIONS.index(st.session_state.curriculum_version),
+        horizontal=True,
+        label_visibility="collapsed"
+    )
+    st.session_state.curriculum_version = curriculum_version
+    st.caption(MATATAG_HELPER_TEXT)
+
+    if curriculum_version == "MATATAG Pilot":
+        st.markdown(
+            '<span class="matatag-badge-sidebar">MATATAG Active</span>',
+            unsafe_allow_html=True
+        )
+
+    # Filter subjects based on curriculum selection
+    _subjects = MATATAG_SUBJECTS if curriculum_version == "MATATAG Pilot" else SUBJECTS
+    _subject_index = 0 if curriculum_version == "MATATAG Pilot" else 3
+    subject = st.selectbox("Subject", _subjects, index=_subject_index)
 
     # Initialize topic in session state if not present
     if "topic_input_val" not in st.session_state:
@@ -629,11 +707,6 @@ with st.sidebar:
     st.divider()
     st.caption(f"Built with love for Philippine educators | {APP_VERSION}")
 
-if "generated_plan" not in st.session_state:
-    st.session_state.generated_plan = None
-if "generation_time" not in st.session_state:
-    st.session_state.generation_time = None
-
 col1, col2, col3 = st.columns([1, 2, 1])
 with col2:
     generate_clicked = st.button("Generate Lesson Plan", use_container_width=True)
@@ -650,6 +723,15 @@ if generate_clicked:
         if not validation_result["valid"]:
             st.error(validation_result["message"])
         else:
+            # Fallback: if MATATAG selected but subject not covered, downgrade to K-12
+            effective_curriculum = st.session_state.curriculum_version
+            if effective_curriculum == "MATATAG Pilot" and subject not in MATATAG_SUBJECTS:
+                st.warning(
+                    f"'{subject}' is not yet available under the MATATAG Pilot. "
+                    "Switching to K-12 Standard for this request."
+                )
+                effective_curriculum = "K-12 Standard"
+
             with st.spinner("Generating your lesson plan... This usually takes 5-15 seconds."):
                 start_time = datetime.now()
 
@@ -660,7 +742,8 @@ if generate_clicked:
                     language=language,
                     additional_notes=additional_notes,
                     api_key=api_key,
-                    model=model
+                    model=model,
+                    curriculum_version=effective_curriculum
                 )
 
                 elapsed = (datetime.now() - start_time).total_seconds()
@@ -675,6 +758,15 @@ if st.session_state.generated_plan:
         st.divider()
 
         st.markdown("### 📄 Generated Lesson Plan")
+
+        # Curriculum alignment label
+        _cv = result.get("curriculum_version", "K-12 Standard")
+        _cv_label = CURRICULUM_ALIGNMENT_LABELS.get(_cv, "Aligned with: K-12 Standard Curriculum")
+        _cv_class = "curriculum-badge matatag-active" if _cv == "MATATAG Pilot" else "curriculum-badge"
+        st.markdown(
+            f'<div class="{_cv_class}">{_cv_label}</div>',
+            unsafe_allow_html=True
+        )
 
         # Convert the markdown content to HTML for proper rendering inside the styled container
         plan_content = result["content"]
@@ -759,7 +851,7 @@ if st.session_state.generated_plan:
         export_col1, export_col2, export_col3 = st.columns(3)
 
         with export_col1:
-            docx_bytes = export_to_docx(result["content"], topic, grade_level, subject)
+            docx_bytes = export_to_docx(result["content"], topic, grade_level, subject, _cv_label)
             st.download_button(
                 label="Download as Word (.docx)",
                 data=docx_bytes,
@@ -769,7 +861,7 @@ if st.session_state.generated_plan:
             )
 
         with export_col2:
-            pdf_bytes = export_to_pdf(result["content"], topic, grade_level, subject)
+            pdf_bytes = export_to_pdf(result["content"], topic, grade_level, subject, _cv_label)
             st.download_button(
                 label="Download as PDF (.pdf)",
                 data=pdf_bytes,

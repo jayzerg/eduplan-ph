@@ -29,6 +29,30 @@ SUBJECTS = [
 
 LANGUAGES = ["English", "Filipino", "Taglish (Mixed English and Filipino)"]
 
+CURRICULUM_VERSIONS = ["K-12 Standard", "MATATAG Pilot"]
+
+MATATAG_SUBJECTS = [
+    "Mother Tongue",
+    "Filipino",
+    "English",
+    "Mathematics",
+    "Science",
+    "Araling Panlipunan (Social Studies)",
+    "Edukasyon sa Pagpapakatao (Values Education)",
+    "Music, Arts, Physical Education, and Health (MAPEH)",
+]
+
+MATATAG_HELPER_TEXT = (
+    "MATATAG focuses on decongested competencies prioritizing "
+    "foundational skills in literacy, numeracy, and character "
+    "development per DepEd's latest framework."
+)
+
+CURRICULUM_ALIGNMENT_LABELS = {
+    "K-12 Standard": "Aligned with: K-12 Standard Curriculum",
+    "MATATAG Pilot": "Aligned with: MATATAG Curriculum 2024",
+}
+
 PROVIDERS = ["OpenRouter"]
 
 PROVIDER_MODELS = {
