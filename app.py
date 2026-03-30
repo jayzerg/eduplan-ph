@@ -196,13 +196,15 @@ with st.sidebar:
 
     if "topic_suggestions" in st.session_state and st.session_state.topic_suggestions:
         st.caption("Suggested Topics (Click to select):")
+
+        def set_topic(suggestion):
+            st.session_state.topic_input = suggestion
+            st.session_state.topic_suggestions = [] # Clear suggestions after selection
+
         for sug in st.session_state.topic_suggestions:
             # Hash or format the button key to avoid issues with special characters
             btn_key = f"sug_{hash(sug)}"
-            if st.button(sug, key=btn_key, use_container_width=True):
-                st.session_state.topic_input = sug
-                st.session_state.topic_suggestions = [] # Clear suggestions after selection
-                st.rerun()
+            st.button(sug, key=btn_key, use_container_width=True, on_click=set_topic, args=(sug,))
 
     additional_notes = st.text_area(
         "Additional Notes (Optional)",
