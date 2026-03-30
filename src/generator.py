@@ -10,7 +10,7 @@ from langchain_openai import ChatOpenAI
 from langchain_core.output_parsers import StrOutputParser
 import re
 
-from prompts import get_lesson_plan_prompt
+from prompts import get_lesson_plan_prompt, get_topic_suggestion_prompt
 from config import OPENROUTER_API_BASE
 
 REQUIRED_SECTIONS = [
@@ -91,6 +91,61 @@ def extract_quiz_from_content(content: str) -> list:
             })
 
     return quiz_data
+
+
+def generate_topic_suggestions(
+    grade_level: str,
+    subject: str,
+    api_key: str,
+    model: str
+) -> dict:
+    """
+    Generate a list of 5 topic suggestions using OpenRouter LLM.
+    """
+    if not api_key or not api_key.strip():
+        return {
+            "success": False,
+            "suggestions": [],
+            "error": "No OpenRouter API key found. Please configure your API key."
+        }
+
+    try:
+        llm = initialize_llm(api_key, model)
+        prompt = get_topic_suggestion_prompt()
+        chain = prompt | llm | StrOutputParser()
+
+        response = chain.invoke({
+            "grade_level": grade_level,
+            "subject": subject
+        })
+
+        # Parse response into a list of strings
+        suggestions = []
+        for line in response.split('\n'):
+            line = line.strip()
+            if line and re.match(r'^\d+\.\s+', line):
+                # Remove the number and period (e.g., "1. Topic Name" -> "Topic Name")
+                topic_name = re.sub(r'^\d+\.\s+', '', line).strip()
+                # Remove markdown formatting like ** or *
+                topic_name = re.sub(r'^\*\*?(.*?)\*\*?$', r'\1', topic_name)
+                suggestions.append(topic_name)
+
+        if not suggestions:
+            # Fallback if the AI didn't format as numbered list
+            suggestions = [line.strip() for line in response.split('\n') if line.strip()][:5]
+
+        return {
+            "success": True,
+            "suggestions": suggestions,
+            "error": None
+        }
+
+    except Exception as e:
+        return {
+            "success": False,
+            "suggestions": [],
+            "error": str(e)
+        }
 
 
 def generate_lesson_plan(

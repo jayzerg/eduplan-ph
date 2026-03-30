@@ -13,7 +13,7 @@ from datetime import datetime
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'src'))
 
 from dotenv import load_dotenv
-from generator import generate_lesson_plan
+from generator import generate_lesson_plan, generate_topic_suggestions
 from utils import export_to_docx, export_to_pdf, export_quiz_to_csv
 from config import (
     GRADE_LEVELS, SUBJECTS, LANGUAGES, 
@@ -162,7 +162,48 @@ with st.sidebar:
     st.subheader("Lesson Details")
     grade_level = st.selectbox("Grade Level", GRADE_LEVELS, index=1)
     subject = st.selectbox("Subject", SUBJECTS, index=3)
-    topic = st.text_input("Topic", placeholder="e.g., Photosynthesis, The Cry of Pugad Lawin")
+
+    # Initialize topic in session state if not present
+    if "topic_input" not in st.session_state:
+        st.session_state.topic_input = ""
+
+    # Provide a simple string as the button key if possible to avoid state rerendering loop if hash is inconsistent
+    col_t1, col_t2 = st.columns([3, 1])
+    with col_t1:
+        topic = st.text_input("Topic", key="topic_input", placeholder="e.g., Photosynthesis, The Cry of Pugad Lawin")
+    with col_t2:
+        # Align button with text input
+        st.markdown("<div style='margin-top: 28px;'></div>", unsafe_allow_html=True)
+        suggest_btn = st.button("💡", help="Suggest Topics")
+
+    if suggest_btn:
+        api_key, _ = get_api_key_for_provider()
+        if not api_key:
+            st.error("API Key missing.")
+        else:
+            with st.spinner("Thinking..."):
+                # Use default model for fast suggestions
+                suggestion_result = generate_topic_suggestions(
+                    grade_level=grade_level,
+                    subject=subject,
+                    api_key=api_key,
+                    model=DEFAULT_MODEL
+                )
+                if suggestion_result["success"]:
+                    st.session_state.topic_suggestions = suggestion_result["suggestions"]
+                else:
+                    st.error(f"Failed: {suggestion_result['error']}")
+
+    if "topic_suggestions" in st.session_state and st.session_state.topic_suggestions:
+        st.caption("Suggested Topics (Click to select):")
+        for sug in st.session_state.topic_suggestions:
+            # Hash or format the button key to avoid issues with special characters
+            btn_key = f"sug_{hash(sug)}"
+            if st.button(sug, key=btn_key, use_container_width=True):
+                st.session_state.topic_input = sug
+                st.session_state.topic_suggestions = [] # Clear suggestions after selection
+                st.rerun()
+
     additional_notes = st.text_area(
         "Additional Notes (Optional)",
         placeholder="e.g., Focus on the light-dependent reactions. Include a hands-on experiment.",

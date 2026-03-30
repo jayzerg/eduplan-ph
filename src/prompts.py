@@ -75,9 +75,35 @@ DEPED_LESSON_PLAN_USER_PROMPT = """Generate a complete DepEd-format lesson plan 
 
 Please ensure the lesson plan is detailed enough to be submitted to a school principal or division supervisor without further editing."""
 
+TOPIC_SUGGESTION_SYSTEM_PROMPT = """You are an expert curriculum developer working for the Department of Education (DepEd) of the Philippines.
+
+Your task is to generate exactly 5 relevant and engaging lesson plan topics for a specific Grade Level and Subject.
+The topics should align with the Philippine K-12 curriculum.
+Output ONLY a numbered list of the 5 topics. Do not include any introductory or concluding text.
+
+Example format:
+1. First Topic Name
+2. Second Topic Name
+3. Third Topic Name
+4. Fourth Topic Name
+5. Fifth Topic Name
+"""
+
+TOPIC_SUGGESTION_USER_PROMPT = """Generate 5 lesson plan topics for:
+
+- Grade Level: {grade_level}
+- Subject: {subject}"""
+
 def get_lesson_plan_prompt() -> ChatPromptTemplate:
     """Returns the configured ChatPromptTemplate for lesson plan generation."""
     return ChatPromptTemplate.from_messages([
         ("system", DEPED_LESSON_PLAN_SYSTEM_PROMPT),
         ("user", DEPED_LESSON_PLAN_USER_PROMPT)
+    ])
+
+def get_topic_suggestion_prompt() -> ChatPromptTemplate:
+    """Returns the configured ChatPromptTemplate for topic suggestions."""
+    return ChatPromptTemplate.from_messages([
+        ("system", TOPIC_SUGGESTION_SYSTEM_PROMPT),
+        ("user", TOPIC_SUGGESTION_USER_PROMPT)
     ])

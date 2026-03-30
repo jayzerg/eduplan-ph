@@ -33,7 +33,10 @@ class TestValidateInputs:
         assert result["valid"] == False
         assert "long" in result["message"].lower()
 
-    def test_valid_topic(self):
+    def test_valid_topic(self, monkeypatch):
+        # Mock get_available_api_keys to return a valid key
+        import validators
+        monkeypatch.setattr(validators, "get_available_api_keys", lambda: ({"OPENROUTER_API_KEY": "fake_key"}, {}))
         result = validate_inputs("Photosynthesis", "fake_key")
         assert result["valid"] == True
 
