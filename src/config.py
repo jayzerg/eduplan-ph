@@ -47,5 +47,6 @@ DEFAULT_MODEL = "stepfun/step-3.5-flash:free"
 OPENROUTER_API_BASE = "https://openrouter.ai/api/v1"
 
 APP_TITLE = "EduPlan PH"
-APP_ICON = "🇵🇭"
+APP_ICON = "ph_flag.png"
+APP_EMOJI = "🇵🇭"
 APP_VERSION = "1.0.2"

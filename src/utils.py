@@ -141,7 +141,7 @@ def export_to_docx(content: str, topic: str, grade_level: str, subject: str) -> 
     title.alignment = WD_ALIGN_PARAGRAPH.CENTER
     for run in title.runs:
         run.font.size = Pt(16)
-        run.font.color.rgb = RGBColor(0, 68, 47)
+        run.font.color.rgb = RGBColor(27, 42, 74)  # Deep Navy
 
     # Meta info
     meta_para = doc.add_paragraph()
@@ -173,7 +173,7 @@ def export_to_docx(content: str, topic: str, grade_level: str, subject: str) -> 
             para.paragraph_format.space_after = Pt(6)
             for run in para.runs:
                 run.font.size = Pt(13)
-                run.font.color.rgb = RGBColor(0, 68, 47)
+                run.font.color.rgb = RGBColor(27, 42, 74)  # Deep Navy
 
         elif item['type'] in ('h2', 'sub_header'):
             para = doc.add_heading(clean_text, level=2)
@@ -319,13 +319,13 @@ def export_to_pdf(content: str, topic: str, grade_level: str, subject: str) -> b
             pdf.set_left_margin(L_MARGIN + 3)
             pdf.set_x(pdf.l_margin)
             pdf.set_font("Helvetica", "B", 13)
-            pdf.set_text_color(0, 68, 47)
+            pdf.set_text_color(27, 42, 74)  # Deep Navy
             # Draw line properly based on string width
             w = pdf.get_string_width(clean) + 2
             pdf.multi_cell(0, 7, clean)
             
             y = pdf.get_y()
-            pdf.set_draw_color(0, 100, 71)
+            pdf.set_draw_color(184, 151, 59)  # Muted Gold accent line
             pdf.line(L_MARGIN + 3, y, L_MARGIN + 3 + min(w, 80), y)
             pdf.set_draw_color(0, 0, 0)
             pdf.set_text_color(0, 0, 0)

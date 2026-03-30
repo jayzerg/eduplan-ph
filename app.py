@@ -8,7 +8,9 @@ import streamlit as st
 import os
 import sys
 import re
+import base64
 from datetime import datetime
+from PIL import Image
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'src'))
 
@@ -18,127 +20,512 @@ from utils import export_to_docx, export_to_pdf, export_quiz_to_csv
 from config import (
     GRADE_LEVELS, SUBJECTS, LANGUAGES, 
     PROVIDER_MODELS, DEFAULT_MODEL,
-    APP_TITLE, APP_ICON, APP_VERSION
+    APP_TITLE, APP_ICON, APP_EMOJI, APP_VERSION
 )
 from validators import validate_inputs, get_api_key_for_provider, get_available_api_keys
 
 load_dotenv()
 
+# Load Philippine flag icon for page tab
+_flag_path = os.path.join(os.path.dirname(__file__), APP_ICON)
+_flag_img = Image.open(_flag_path) if os.path.exists(_flag_path) else APP_EMOJI
+
 st.set_page_config(
-    page_title=f"{APP_TITLE} {APP_ICON}",
-    page_icon=APP_ICON,
+    page_title=f"{APP_TITLE}",
+    page_icon=_flag_img if isinstance(_flag_img, Image.Image) else APP_EMOJI,
     layout="wide",
     initial_sidebar_state="expanded"
 )
 
+# Encode flag as base64 for inline HTML rendering
+def _flag_b64():
+    with open(_flag_path, 'rb') as f:
+        return base64.b64encode(f.read()).decode()
+_FLAG_B64 = _flag_b64() if os.path.exists(_flag_path) else None
+
 
 st.markdown("""
 <style>
-    .main-header {
-        font-size: 2.5rem;
-        font-weight: 700;
-        color: #1a1a2e;
-        margin-bottom: 0.5rem;
-    }
-    .sub-header {
-        font-size: 1.1rem;
-        color: #555;
-        margin-bottom: 2rem;
-    }
-    .stButton > button {
-        background-color: #006847;
-        color: white;
-        font-weight: 600;
-        border-radius: 8px;
-        padding: 0.75rem 2rem;
-        border: none;
-        width: 100%;
-    }
-    .stButton > button:hover {
-        background-color: #004d33;
-    }
-    .footer {
-        text-align: center;
-        color: #888;
-        font-size: 0.85rem;
-        margin-top: 3rem;
-        padding-top: 1rem;
-        border-top: 1px solid #eee;
+    /* ═══════════════════════════════════════════════════════════
+       ACADEMIC AESTHETIC — Color Palette & Design System
+       ──────────────────────────────────────────────────────────
+       Deep Navy:       #1B2A4A    (primary, headings)
+       Oxford Blue:     #002147    (dark accents, sidebar)
+       Burgundy:        #6B2737    (call-to-action, emphasis)
+       Maroon:          #5A1A2A    (hover states, deep accent)
+       Warm Ivory:      #FAF8F3    (page background)
+       Parchment:       #F0EDE4    (cards, secondary bg)
+       Cream:           #F5F0E8    (alternate surfaces)
+       Muted Gold:      #B8973B    (decorative accents, links)
+       Antique Gold:    #9A7D30    (hover gold)
+       Forest Green:    #2D5F3E    (indicators, success)
+       Sage Green:      #5C7A5E    (subtle highlights)
+       Charcoal:        #1C1C2E    (body text)
+       ═══════════════════════════════════════════════════════════ */
+
+    @import url('https://fonts.googleapis.com/css2?family=Crimson+Text:ital,wght@0,400;0,600;0,700;1,400&family=Inter:wght@300;400;500;600;700&display=swap');
+
+    /* ── Root Variables (Light Mode) ──────────────────────── */
+    :root {
+        --acad-navy: #1B2A4A;
+        --acad-oxford: #002147;
+        --acad-burgundy: #6B2737;
+        --acad-maroon: #5A1A2A;
+        --acad-ivory: #FAF8F3;
+        --acad-parchment: #F0EDE4;
+        --acad-cream: #F5F0E8;
+        --acad-gold: #B8973B;
+        --acad-gold-hover: #9A7D30;
+        --acad-forest: #2D5F3E;
+        --acad-sage: #5C7A5E;
+        --acad-charcoal: #1C1C2E;
+        --acad-text-secondary: #4A4A5A;
+        --acad-border: #D8D3C8;
+        --acad-border-light: #E8E3D8;
+        --acad-shadow: rgba(27, 42, 74, 0.08);
+        --acad-shadow-lg: rgba(27, 42, 74, 0.14);
+        --acad-glow-gold: rgba(184, 151, 59, 0.15);
     }
 
-    /* Lesson Plan Document Styling */
-    .lesson-plan-doc {
-        background-color: #ffffff;
-        padding: 2.5rem 3rem;
-        border-radius: 8px;
-        border: 1px solid #d0d0d0;
-        box-shadow: 0 2px 8px rgba(0,0,0,0.06);
-        font-family: 'Arial', 'Helvetica Neue', sans-serif;
-        line-height: 1.7;
-        color: #1a1a1a;
-        max-width: 100%;
+    /* ── Global Typography & Background ──────────────────── */
+    .stApp, .main .block-container {
+        font-family: 'Inter', 'Georgia', serif !important;
+        background-color: var(--acad-ivory) !important;
+        color: var(--acad-charcoal) !important;
     }
-    .lesson-plan-doc h2 {
-        color: #00442f;
-        font-size: 1.25rem;
+    h1, h2, h3, h4, h5, h6,
+    .stMarkdown h1, .stMarkdown h2, .stMarkdown h3 {
+        font-family: 'Crimson Text', 'Georgia', serif !important;
+        color: var(--acad-navy) !important;
+    }
+
+    /* ── Main Header & Subtitle ──────────────────────────── */
+    .main-header {
+        font-family: 'Crimson Text', 'Georgia', serif !important;
+        font-size: 2.8rem;
         font-weight: 700;
-        margin-top: 1.8rem;
-        margin-bottom: 0.6rem;
-        padding-bottom: 0.35rem;
-        border-bottom: 2px solid #006847;
+        color: var(--acad-navy) !important;
+        margin-bottom: 0.3rem;
+        letter-spacing: 0.01em;
+        text-shadow: 0 1px 2px rgba(27, 42, 74, 0.06);
+        position: relative;
+    }
+    .main-header::after {
+        content: '';
+        display: block;
+        width: 60px;
+        height: 3px;
+        background: linear-gradient(90deg, var(--acad-gold), var(--acad-burgundy));
+        border-radius: 2px;
+        margin-top: 0.5rem;
+    }
+    .sub-header {
+        font-family: 'Inter', sans-serif !important;
+        font-size: 1.05rem;
+        color: var(--acad-text-secondary) !important;
+        margin-bottom: 1.5rem;
+        font-weight: 400;
         letter-spacing: 0.02em;
     }
-    .lesson-plan-doc h3 {
-        color: #1a1a2e;
-        font-size: 1.05rem;
+
+    /* ── Sidebar — Oxford Dark Parchment ─────────────────── */
+    section[data-testid="stSidebar"] {
+        background: linear-gradient(175deg, #0C1829 0%, #142240 50%, #1B2A4A 100%) !important;
+        border-right: 1px solid rgba(184, 151, 59, 0.2) !important;
+    }
+    section[data-testid="stSidebar"] * {
+        color: #E8E3D8 !important;
+    }
+    section[data-testid="stSidebar"] h1,
+    section[data-testid="stSidebar"] h2,
+    section[data-testid="stSidebar"] h3,
+    section[data-testid="stSidebar"] .stSubheader,
+    section[data-testid="stSidebar"] [data-testid="stMarkdownContainer"] h2,
+    section[data-testid="stSidebar"] [data-testid="stMarkdownContainer"] h3 {
+        color: var(--acad-gold) !important;
+        font-family: 'Crimson Text', 'Georgia', serif !important;
         font-weight: 600;
-        margin-top: 1.2rem;
+        letter-spacing: 0.03em;
+    }
+    section[data-testid="stSidebar"] .stCaption,
+    section[data-testid="stSidebar"] small {
+        color: rgba(232, 227, 216, 0.6) !important;
+    }
+    section[data-testid="stSidebar"] hr {
+        border-color: rgba(184, 151, 59, 0.25) !important;
+    }
+    /* Sidebar inputs — dark text on light input backgrounds */
+    section[data-testid="stSidebar"] .stSelectbox > div > div,
+    section[data-testid="stSidebar"] .stTextInput > div > div > input,
+    section[data-testid="stSidebar"] .stTextArea > div > div > textarea {
+        background-color: var(--acad-cream) !important;
+        border: 1px solid rgba(184, 151, 59, 0.35) !important;
+        border-radius: 6px !important;
+        color: var(--acad-charcoal) !important;
+        transition: border-color 0.3s ease, box-shadow 0.3s ease;
+    }
+    section[data-testid="stSidebar"] .stTextInput > div > div > input,
+    section[data-testid="stSidebar"] .stTextArea > div > div > textarea {
+        color: var(--acad-charcoal) !important;
+    }
+    section[data-testid="stSidebar"] .stTextInput > div > div > input::placeholder,
+    section[data-testid="stSidebar"] .stTextArea > div > div > textarea::placeholder {
+        color: #8A8578 !important;
+        opacity: 1 !important;
+    }
+    section[data-testid="stSidebar"] .stSelectbox > div > div:focus-within,
+    section[data-testid="stSidebar"] .stTextInput > div > div > input:focus,
+    section[data-testid="stSidebar"] .stTextArea > div > div > textarea:focus {
+        border-color: var(--acad-gold) !important;
+        box-shadow: 0 0 0 2px var(--acad-glow-gold) !important;
+    }
+
+    /* ── Primary Buttons (Burgundy Accent) ───────────────── */
+    .stButton > button {
+        background: linear-gradient(135deg, var(--acad-burgundy) 0%, var(--acad-maroon) 100%) !important;
+        color: #FAF8F3 !important;
+        font-family: 'Inter', sans-serif !important;
+        font-weight: 600;
+        font-size: 0.9rem;
+        letter-spacing: 0.04em;
+        border-radius: 6px !important;
+        padding: 0.7rem 2rem !important;
+        border: 1px solid rgba(184, 151, 59, 0.2) !important;
+        width: 100%;
+        box-shadow: 0 2px 8px rgba(107, 39, 55, 0.2);
+        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1) !important;
+        position: relative;
+        overflow: hidden;
+    }
+    .stButton > button:hover {
+        background: linear-gradient(135deg, #7D3045 0%, var(--acad-burgundy) 100%) !important;
+        box-shadow: 0 4px 16px rgba(107, 39, 55, 0.3) !important;
+        border-color: var(--acad-gold) !important;
+        transform: translateY(-1px);
+    }
+    .stButton > button:active {
+        transform: translateY(0px);
+        box-shadow: 0 1px 4px rgba(107, 39, 55, 0.2) !important;
+    }
+
+    /* Sidebar buttons — subtle gold outline variant */
+    section[data-testid="stSidebar"] .stButton > button {
+        background: transparent !important;
+        border: 1.5px solid var(--acad-gold) !important;
+        color: var(--acad-gold) !important;
+        box-shadow: none;
+    }
+    section[data-testid="stSidebar"] .stButton > button:hover {
+        background: rgba(184, 151, 59, 0.12) !important;
+        box-shadow: 0 0 12px var(--acad-glow-gold) !important;
+    }
+
+    /* ── Download Buttons — Forest Green Variant ─────────── */
+    .stDownloadButton > button {
+        background: linear-gradient(135deg, var(--acad-forest) 0%, #1E4A2E 100%) !important;
+        color: #FAF8F3 !important;
+        font-family: 'Inter', sans-serif !important;
+        font-weight: 600;
+        font-size: 0.85rem;
+        letter-spacing: 0.03em;
+        border-radius: 6px !important;
+        border: 1px solid rgba(92, 122, 94, 0.3) !important;
+        box-shadow: 0 2px 6px rgba(45, 95, 62, 0.15);
+        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1) !important;
+    }
+    .stDownloadButton > button:hover {
+        background: linear-gradient(135deg, #367A4C 0%, var(--acad-forest) 100%) !important;
+        box-shadow: 0 4px 14px rgba(45, 95, 62, 0.25) !important;
+        transform: translateY(-1px);
+    }
+
+    /* ── Cards & Expanders ───────────────────────────────── */
+    [data-testid="stExpander"] {
+        background-color: var(--acad-parchment) !important;
+        border: 1px solid var(--acad-border) !important;
+        border-radius: 8px !important;
+        box-shadow: 0 1px 4px var(--acad-shadow);
+    }
+    [data-testid="stExpander"] summary {
+        font-family: 'Crimson Text', serif !important;
+        color: var(--acad-navy) !important;
+        font-weight: 600;
+    }
+
+    /* ── Status Messages ─────────────────────────────────── */
+    .stSuccess {
+        background-color: rgba(45, 95, 62, 0.08) !important;
+        border-left: 4px solid var(--acad-forest) !important;
+        color: var(--acad-forest) !important;
+    }
+    .stError, [data-testid="stNotification"][data-type="error"] {
+        background-color: rgba(107, 39, 55, 0.06) !important;
+        border-left: 4px solid var(--acad-burgundy) !important;
+    }
+    .stInfo {
+        background-color: rgba(27, 42, 74, 0.06) !important;
+        border-left: 4px solid var(--acad-navy) !important;
+    }
+    .stWarning {
+        background-color: rgba(184, 151, 59, 0.08) !important;
+        border-left: 4px solid var(--acad-gold) !important;
+    }
+
+    /* ── Dividers — Gold Thread ───────────────────────────── */
+    hr {
+        border: none !important;
+        height: 1px !important;
+        background: linear-gradient(
+            90deg,
+            transparent 0%,
+            var(--acad-border) 10%,
+            var(--acad-gold) 50%,
+            var(--acad-border) 90%,
+            transparent 100%
+        ) !important;
+        opacity: 0.5;
+    }
+
+    /* ── Links — Muted Gold ──────────────────────────────── */
+    a {
+        color: var(--acad-gold) !important;
+        text-decoration: none !important;
+        border-bottom: 1px solid transparent;
+        transition: all 0.2s ease;
+    }
+    a:hover {
+        color: var(--acad-gold-hover) !important;
+        border-bottom-color: var(--acad-gold-hover) !important;
+    }
+
+    /* ── Spinner ──────────────────────────────────────────── */
+    .stSpinner > div > div {
+        border-top-color: var(--acad-burgundy) !important;
+    }
+
+    /* ── Footer ──────────────────────────────────────────── */
+    .footer {
+        text-align: center;
+        color: var(--acad-text-secondary) !important;
+        font-family: 'Inter', sans-serif !important;
+        font-size: 0.8rem;
+        margin-top: 3rem;
+        padding-top: 1.2rem;
+        border-top: none !important;
+        position: relative;
+        letter-spacing: 0.03em;
+    }
+    .footer::before {
+        content: '';
+        display: block;
+        width: 80px;
+        height: 2px;
+        background: linear-gradient(90deg, var(--acad-gold), var(--acad-burgundy));
+        border-radius: 1px;
+        margin: 0 auto 1rem auto;
+    }
+
+    /* ═══════════════════════════════════════════════════════
+       LESSON PLAN DOCUMENT — Scholarly Parchment Card
+       ═══════════════════════════════════════════════════════ */
+    .lesson-plan-doc {
+        background: linear-gradient(170deg, #FFFFFF 0%, var(--acad-cream) 100%);
+        padding: 2.5rem 3rem;
+        border-radius: 4px;
+        border: 1px solid var(--acad-border);
+        border-top: 4px solid var(--acad-navy);
+        box-shadow:
+            0 2px 12px var(--acad-shadow),
+            0 0 0 1px var(--acad-border-light),
+            inset 0 1px 0 rgba(255, 255, 255, 0.8);
+        font-family: 'Crimson Text', 'Georgia', serif;
+        line-height: 1.8;
+        color: var(--acad-charcoal);
+        max-width: 100%;
+        position: relative;
+    }
+    /* Gold corner flourish */
+    .lesson-plan-doc::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        right: 0;
+        width: 60px;
+        height: 60px;
+        background: linear-gradient(225deg, var(--acad-glow-gold) 0%, transparent 60%);
+        border-radius: 0 4px 0 0;
+    }
+
+    .lesson-plan-doc h2 {
+        font-family: 'Crimson Text', 'Georgia', serif !important;
+        color: var(--acad-navy) !important;
+        font-size: 1.3rem;
+        font-weight: 700;
+        margin-top: 2rem;
+        margin-bottom: 0.6rem;
+        padding-bottom: 0.4rem;
+        border-bottom: 2px solid var(--acad-gold);
+        letter-spacing: 0.03em;
+        text-transform: none;
+    }
+    .lesson-plan-doc h3 {
+        font-family: 'Crimson Text', 'Georgia', serif !important;
+        color: var(--acad-oxford) !important;
+        font-size: 1.1rem;
+        font-weight: 600;
+        margin-top: 1.4rem;
         margin-bottom: 0.4rem;
+        padding-left: 0.8rem;
+        border-left: 3px solid var(--acad-burgundy);
     }
     .lesson-plan-doc h4 {
-        color: #333;
-        font-size: 0.95rem;
+        font-family: 'Crimson Text', 'Georgia', serif !important;
+        color: var(--acad-forest) !important;
+        font-size: 1rem;
         font-weight: 600;
-        margin-top: 0.8rem;
+        margin-top: 1rem;
         margin-bottom: 0.3rem;
     }
     .lesson-plan-doc p {
-        margin: 0.3rem 0;
+        margin: 0.35rem 0;
         text-align: justify;
-        font-size: 0.95rem;
+        font-size: 1rem;
+        line-height: 1.75;
     }
     .lesson-plan-doc ul {
-        margin: 0.3rem 0 0.3rem 1.2rem;
+        margin: 0.4rem 0 0.4rem 1.4rem;
         padding-left: 0.8rem;
     }
     .lesson-plan-doc ol {
-        margin: 0.3rem 0 0.3rem 1.2rem;
+        margin: 0.4rem 0 0.4rem 1.4rem;
         padding-left: 0.8rem;
     }
     .lesson-plan-doc li {
-        margin: 0.2rem 0;
-        font-size: 0.95rem;
-        line-height: 1.65;
+        margin: 0.25rem 0;
+        font-size: 1rem;
+        line-height: 1.7;
+    }
+    .lesson-plan-doc li::marker {
+        color: var(--acad-gold);
     }
     .lesson-plan-doc strong {
-        color: #00442f;
+        color: var(--acad-navy) !important;
+        font-weight: 700;
     }
     .lesson-plan-doc hr {
         border: none;
-        border-top: 1px solid #e0e0e0;
-        margin: 1rem 0;
+        height: 1px;
+        background: linear-gradient(
+            90deg,
+            transparent,
+            var(--acad-border) 20%,
+            var(--acad-gold) 50%,
+            var(--acad-border) 80%,
+            transparent
+        );
+        margin: 1.2rem 0;
+        opacity: 0.6;
     }
     .lesson-plan-doc blockquote {
-        border-left: 3px solid #006847;
+        border-left: 3px solid var(--acad-gold);
         padding-left: 1rem;
-        margin: 0.5rem 0;
-        color: #444;
+        margin: 0.6rem 0;
+        color: var(--acad-text-secondary);
         font-style: italic;
+        background: rgba(184, 151, 59, 0.04);
+        padding: 0.6rem 1rem;
+        border-radius: 0 4px 4px 0;
+    }
+
+    /* ═══════════════════════════════════════════════════════
+       DARK MODE — Candlelit Library
+       ═══════════════════════════════════════════════════════ */
+    @media (prefers-color-scheme: dark) {
+        :root {
+            --acad-navy: #8BA4D0;
+            --acad-oxford: #6B8CC4;
+            --acad-burgundy: #C2748A;
+            --acad-maroon: #A85A70;
+            --acad-ivory: #121820;
+            --acad-parchment: #1A2030;
+            --acad-cream: #1E2638;
+            --acad-gold: #D4B361;
+            --acad-gold-hover: #E5C878;
+            --acad-forest: #6AB87A;
+            --acad-sage: #7FA882;
+            --acad-charcoal: #E0DCD5;
+            --acad-text-secondary: #A8A298;
+            --acad-border: #2A3240;
+            --acad-border-light: #333D4D;
+            --acad-shadow: rgba(0, 0, 0, 0.3);
+            --acad-shadow-lg: rgba(0, 0, 0, 0.45);
+            --acad-glow-gold: rgba(212, 179, 97, 0.2);
+        }
+
+        .stApp, .main .block-container {
+            background-color: #121820 !important;
+        }
+
+        section[data-testid="stSidebar"] {
+            background: linear-gradient(175deg, #0A0F18 0%, #0F1622 50%, #141E2E 100%) !important;
+        }
+
+        .lesson-plan-doc {
+            background: linear-gradient(170deg, #1A2030 0%, #1E2638 100%);
+            border-color: #2A3240;
+            border-top-color: #8BA4D0;
+        }
+
+        .stButton > button {
+            background: linear-gradient(135deg, #7D3045 0%, #6B2737 100%) !important;
+        }
+        .stButton > button:hover {
+            background: linear-gradient(135deg, #924060 0%, #7D3045 100%) !important;
+        }
+
+        .stDownloadButton > button {
+            background: linear-gradient(135deg, #2D5F3E 0%, #1E4A2E 100%) !important;
+        }
+    }
+
+    /* ── Micro-animations ────────────────────────────────── */
+    @keyframes fadeInUp {
+        from { opacity: 0; transform: translateY(10px); }
+        to { opacity: 1; transform: translateY(0); }
+    }
+    .lesson-plan-doc {
+        animation: fadeInUp 0.5s ease-out;
+    }
+    .main-header {
+        animation: fadeInUp 0.4s ease-out;
+    }
+
+    /* ── Scrollbar (Academic Dark) ────────────────────────── */
+    ::-webkit-scrollbar {
+        width: 8px;
+        height: 8px;
+    }
+    ::-webkit-scrollbar-track {
+        background: var(--acad-parchment);
+    }
+    ::-webkit-scrollbar-thumb {
+        background: var(--acad-border);
+        border-radius: 4px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+        background: var(--acad-gold);
+    }
+
+    /* ── Selection color ─────────────────────────────────── */
+    ::selection {
+        background: rgba(184, 151, 59, 0.25);
+        color: var(--acad-navy);
     }
 </style>
 """, unsafe_allow_html=True)
 
-st.markdown(f'<p class="main-header">{APP_TITLE} {APP_ICON}</p>', unsafe_allow_html=True)
+_flag_html = f'<img src="data:image/png;base64,{_FLAG_B64}" style="height: 2.2rem; vertical-align: middle; margin-left: 0.5rem; border-radius: 3px; box-shadow: 0 1px 4px rgba(0,0,0,0.15);" />' if _FLAG_B64 else APP_EMOJI
+st.markdown(f'<p class="main-header">{APP_TITLE} {_flag_html}</p>', unsafe_allow_html=True)
 st.markdown(f'<p class="sub-header">AI-Enhanced Lesson Plan Generator for Philippine K-12 Educators &nbsp;|&nbsp; v{APP_VERSION}</p>', unsafe_allow_html=True)
 
 st.markdown("""

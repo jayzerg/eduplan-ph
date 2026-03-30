@@ -1,0 +1,7 @@
+[theme]
+# Academic Aesthetic — Scholarly Light Mode
+primaryColor = "#1B2A4A"
+backgroundColor = "#FAF8F3"
+secondaryBackgroundColor = "#F0EDE4"
+textColor = "#1C1C2E"
+font = "serif"
