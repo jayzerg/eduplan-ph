@@ -164,13 +164,17 @@ with st.sidebar:
     subject = st.selectbox("Subject", SUBJECTS, index=3)
 
     # Initialize topic in session state if not present
-    if "topic_input" not in st.session_state:
-        st.session_state.topic_input = ""
+    if "topic_input_val" not in st.session_state:
+        st.session_state.topic_input_val = ""
+
+    def sync_topic():
+        st.session_state.topic_input_val = st.session_state.topic_widget
+
 
     # Provide a simple string as the button key if possible to avoid state rerendering loop if hash is inconsistent
     col_t1, col_t2 = st.columns([3, 1])
     with col_t1:
-        topic = st.text_input("Topic", key="topic_input", placeholder="e.g., Photosynthesis, The Cry of Pugad Lawin")
+        topic = st.text_input("Topic", key="topic_widget", value=st.session_state.topic_input_val, on_change=sync_topic, placeholder="e.g., Photosynthesis, The Cry of Pugad Lawin")
     with col_t2:
         # Align button with text input
         st.markdown("<div style='margin-top: 28px;'></div>", unsafe_allow_html=True)
@@ -198,7 +202,7 @@ with st.sidebar:
         st.caption("Suggested Topics (Click to select):")
 
         def set_topic(suggestion):
-            st.session_state.topic_input = suggestion
+            st.session_state.topic_input_val = suggestion
             st.session_state.topic_suggestions = [] # Clear suggestions after selection
 
         for sug in st.session_state.topic_suggestions:
