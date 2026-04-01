@@ -25,6 +25,7 @@ from config import (
     CURRICULUM_ALIGNMENT_LABELS
 )
 from validators import validate_inputs, get_api_key_for_provider, get_available_api_keys
+from cache_manager import get_analytics, clear_all_cache
 
 load_dotenv()
 
@@ -705,6 +706,23 @@ with st.sidebar:
             st.caption("OpenRouter: Not configured")
 
     st.divider()
+    st.subheader("Cache Analytics")
+    analytics = get_analytics()
+    
+    col_a, col_b = st.columns(2)
+    col_a.metric("Hit Rate", f"{analytics['hit_rate_pct']:.1f}%")
+    col_b.metric("SQLite Size", f"{analytics['sqlite_size_mb']:.2f} MB")
+    
+    with st.expander("Cache Details"):
+        st.write(f"**Total Requests:** {analytics['total_requests']}")
+        st.write(f"**Cached Items (SQLite):** {analytics['sqlite_items']}")
+        st.write(f"**Avg Latency (Cache):** {analytics['avg_latency_cached_ms']:.1f} ms")
+        st.write(f"**Avg Latency (Live):** {analytics['avg_latency_live_ms']:.1f} ms")
+        if st.button("🧹 Clear All Cache", use_container_width=True):
+            clear_all_cache()
+            st.rerun()
+
+    st.divider()
     st.caption(f"Built with love for Philippine educators | {APP_VERSION}")
 
 col1, col2, col3 = st.columns([1, 2, 1])
@@ -753,8 +771,13 @@ if generate_clicked:
 if st.session_state.generated_plan:
     result = st.session_state.generated_plan
 
-    if result["success"]:
-        st.success(f"Lesson plan generated in {st.session_state.generation_time:.1f} seconds")
+    if result.get("success"):
+        if result.get("_served_from_cache"):
+            latency = result.get("_cache_latency_ms", 0)
+            st.success(f"⚡ Lesson plan served from local cache in {latency:.1f}ms")
+        else:
+            st.success(f"📝 Lesson plan generated in {st.session_state.generation_time:.1f} seconds")
+            
         st.divider()
 
         st.markdown("### 📄 Generated Lesson Plan")

@@ -12,6 +12,7 @@ import re
 
 from prompts import get_lesson_plan_prompt, get_topic_suggestion_prompt
 from config import OPENROUTER_API_BASE
+from cache_manager import intelligent_cache
 
 REQUIRED_SECTIONS = [
     "I. OBJECTIVES",
@@ -98,6 +99,7 @@ def extract_quiz_from_content(content: str) -> list:
     return quiz_data
 
 
+@intelligent_cache(endpoint="topic_suggestions", cache_type="st")
 def generate_topic_suggestions(
     grade_level: str,
     subject: str,
@@ -161,6 +163,7 @@ def generate_topic_suggestions(
         }
 
 
+@intelligent_cache(endpoint="lesson_plan", cache_type="sqlite")
 def generate_lesson_plan(
     grade_level: str,
     subject: str,
