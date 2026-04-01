@@ -9,6 +9,7 @@ import os
 import sys
 import re
 import base64
+import html
 from datetime import datetime
 from PIL import Image
 
@@ -586,11 +587,23 @@ st.divider()
 
 
 def _md_inline(text: str) -> str:
-    """Convert inline markdown (bold, italic) to HTML."""
+    """Convert inline markdown (bold, italic, code) to HTML, safely escaping < and >."""
+    # First, escape HTML to prevent accidental injection of actual tags
+    text = html.escape(text)
+    
+    # Code: `text` -> <code>text</code>
+    text = re.sub(
+        r'`(.+?)`', 
+        r'<code style="background-color: rgba(184, 151, 59, 0.15); color: var(--acad-gold); padding: 0.1rem 0.3rem; border-radius: 3px; font-family: \'Courier New\', Courier, monospace;">\1</code>', 
+        text
+    )
+    
     # Bold: **text** -> <strong>text</strong>
     text = re.sub(r'\*\*(.+?)\*\*', r'<strong>\1</strong>', text)
+    
     # Italic: *text* -> <em>text</em>
     text = re.sub(r'\*(.+?)\*', r'<em>\1</em>', text)
+    
     return text
 
 # Initialize session state variables
