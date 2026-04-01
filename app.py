@@ -19,7 +19,7 @@ from generator import generate_lesson_plan, generate_topic_suggestions
 from utils import export_to_docx, export_to_pdf, export_quiz_to_csv
 from config import (
     GRADE_LEVELS, SUBJECTS, LANGUAGES, 
-    PROVIDER_MODELS, DEFAULT_MODEL,
+    DEFAULT_MODEL,
     APP_TITLE, APP_ICON, APP_EMOJI, APP_VERSION,
     CURRICULUM_VERSIONS, MATATAG_SUBJECTS, MATATAG_HELPER_TEXT,
     CURRICULUM_ALIGNMENT_LABELS
@@ -684,8 +684,8 @@ with st.sidebar:
     st.subheader("Output Settings")
     language = st.selectbox("Output Language", LANGUAGES, index=0)
     
-    models = PROVIDER_MODELS["OpenRouter"]
-    model = st.selectbox("AI Model", models, index=0)
+    model = DEFAULT_MODEL
+    st.markdown(f"**Active AI Model:** {model}")
 
     st.divider()
     st.subheader("API Status")

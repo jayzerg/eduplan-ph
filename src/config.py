@@ -24,6 +24,10 @@ SUBJECTS = [
     "Edukasyong Pantahanan at Pangkabuhayan (EPP)",
     "Technology and Livelihood Education (TLE)",
     "General Academic Strand (GAS)",
+    "STEM (Science, Technology, Engineering, Mathematics)",
+    "ABM (Accountancy, Business, Management)",
+    "HUMSS (Humanities and Social Sciences)",
+    "TVL (Technical-Vocational-Livelihood)",
     "Other"
 ]
 
