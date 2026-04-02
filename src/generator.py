@@ -14,14 +14,14 @@ from prompts import get_lesson_plan_prompt, get_topic_suggestion_prompt
 from config import OPENROUTER_API_BASE
 from cache_manager import intelligent_cache
 
-REQUIRED_SECTIONS = [
-    "I. OBJECTIVES",
-    "II. CONTENT",
-    "III. LEARNING RESOURCES",
-    "IV. PROCEDURES",
-    "V. ASSESSMENT",
-    "VI. REFLECTION"
-]
+REQUIRED_SECTIONS = {
+    "I. OBJECTIVES": r"(?:I\.|1\.)\s*OBJECTIVES",
+    "II. CONTENT": r"(?:II\.|2\.)\s*CONTENT",
+    "III. LEARNING RESOURCES": r"(?:III\.|3\.)\s*LEARNING\s+RESOURCES",
+    "IV. PROCEDURES": r"(?:IV\.|4\.)\s*PROCEDURES",
+    "V. ASSESSMENT": r"(?:V\.|5\.)\s*(?:ASSESSMENT|EVALUATION|FORMATIVE)",
+    "VI. REFLECTION": r"(?:VI\.|6\.)\s*(?:REFLECTION|REMARKS)"
+}
 
 
 def initialize_llm(api_key: str, model: str):
@@ -40,6 +40,7 @@ def initialize_llm(api_key: str, model: str):
             "X-Title": "EduPlan PH" # Your app name
         },
         temperature=0.7,
+        max_tokens=4000,
         timeout=60,
     )
 
@@ -47,12 +48,12 @@ def initialize_llm(api_key: str, model: str):
 def validate_dlp_structure(content: str) -> dict:
     """
     Verify that the generated content contains all required DepEd DLP sections.
+    Uses flexible regex matching to allow for common LLM variations.
     """
     missing = []
-    for section in REQUIRED_SECTIONS:
-        pattern = re.escape(section).replace(r'\ ', r'\s+')
+    for section_name, pattern in REQUIRED_SECTIONS.items():
         if not re.search(pattern, content, re.IGNORECASE):
-            missing.append(section)
+            missing.append(section_name)
 
     return {
         "complete": len(missing) == 0,

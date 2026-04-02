@@ -36,7 +36,7 @@ def sanitize_for_pdf(text: str) -> str:
         '\u25cb': 'o',   # white circle
         '\u2192': '->',  # right arrow
         '\u2190': '<-',  # left arrow
-        '\u2714': '[/]',  # check mark
+        '\u2714': '[v]',  # check mark
         '\u2716': '[x]',  # cross mark
         '\u00f1': 'n',   # ñ - common in Filipino
         '\u00d1': 'N',   # Ñ
@@ -65,34 +65,47 @@ def parse_markdown_lines(md_content: str) -> list:
     Types: 'h1', 'h2', 'h3', 'section_header', 'sub_header', 'bullet', 'numbered', 'text', 'empty'
     """
     lines = []
-    for raw_line in md_content.split('\n'):
-        line = raw_line.rstrip()
+    prev_empty = False
 
-        if not line.strip():
-            lines.append({'type': 'empty', 'text': '', 'level': 0})
+    for raw_line in md_content.split('\n'):
+        # Keep original line for bullet indent detection, but use stripped for logic
+        stripped = raw_line.strip()
+
+        if stripped in ('---', '----', '-----', '------', '***', '___'):
+            lines.append({'type': 'separator', 'text': '', 'level': 0})
+            prev_empty = False
             continue
 
-        # Markdown headings
-        h_match = re.match(r'^(#{1,6})\s+(.*)', line)
+        if not stripped:
+            if not prev_empty:
+                lines.append({'type': 'empty', 'text': '', 'level': 0})
+                prev_empty = True
+            continue
+
+        prev_empty = False
+
+        # Markdown headings (allow missing space after hashes)
+        h_match = re.match(r'^(#{1,6})\s*(.*)', stripped)
         if h_match:
             level = len(h_match.group(1))
             text = h_match.group(2).strip()
-            # Strip bold markers from headings
+            # Strip bold/italic markers from headings completely
             text = re.sub(r'\*\*(.+?)\*\*', r'\1', text)
+            text = re.sub(r'(?<!\*)\*(?!\*)(.+?)(?<!\*)\*(?!\*)', r'\1', text)
             lines.append({'type': f'h{min(level, 3)}', 'text': text, 'level': level})
             continue
-
-        stripped = line.strip()
 
         # Roman numeral section headers (I. OBJECTIVES, II. CONTENT, etc.)
         if re.match(r'^[IVX]+\.\s', stripped):
             text = re.sub(r'\*\*(.+?)\*\*', r'\1', stripped)
+            text = re.sub(r'(?<!\*)\*(?!\*)(.+?)(?<!\*)\*(?!\*)', r'\1', text)
             lines.append({'type': 'section_header', 'text': text, 'level': 1})
             continue
 
         # Letter sub-headers (A. Preliminary Activities, B. Lesson Proper, etc.)
         if re.match(r'^[A-H]\.\s', stripped):
             text = re.sub(r'\*\*(.+?)\*\*', r'\1', stripped)
+            text = re.sub(r'(?<!\*)\*(?!\*)(.+?)(?<!\*)\*(?!\*)', r'\1', text)
             lines.append({'type': 'sub_header', 'text': text, 'level': 2})
             continue
 
@@ -101,18 +114,18 @@ def parse_markdown_lines(md_content: str) -> list:
         indent_level = indent // 3  # roughly 3 spaces per level
 
         # Bullet points (-, *, •)
-        bullet_match = re.match(r'^(\s*)[*\-•]\s+(.*)', line)
+        bullet_match = re.match(r'^(\s*)[*\-•]\s+(.*)', raw_line)
         if bullet_match:
             text = bullet_match.group(2).strip()
-            # Preserve bold in bullets
             lines.append({'type': 'bullet', 'text': text, 'level': indent_level})
             continue
 
         # Numbered items
-        num_match = re.match(r'^(\s*)\d+\.\s+(.*)', line)
+        num_match = re.match(r'^(\s*)(\d+\.)\s+(.*)', raw_line)
         if num_match:
-            text = num_match.group(2).strip()
-            lines.append({'type': 'numbered', 'text': text, 'level': indent_level})
+            num_str = num_match.group(2)
+            text = num_match.group(3).strip()
+            lines.append({'type': 'numbered', 'text': text, 'level': indent_level, 'num': num_str})
             continue
 
         # Regular text
@@ -171,10 +184,15 @@ def export_to_docx(content: str, topic: str, grade_level: str, subject: str, cur
 
     for item in parsed:
         if item['type'] == 'empty':
+            # Skip empty lines since paragraph spacing is already handled by space_before/after
+            continue
+            
+        if item['type'] == 'separator':
+            doc.add_paragraph('_' * 80).alignment = WD_ALIGN_PARAGRAPH.CENTER
             continue
 
         text = item['text']
-        # Clean markdown bold markers for display
+        # Clean markdown bold markers for display on headers
         clean_text = re.sub(r'\*\*(.+?)\*\*', r'\1', text)
 
         if item['type'] in ('h1', 'section_header'):
@@ -202,21 +220,23 @@ def export_to_docx(content: str, topic: str, grade_level: str, subject: str, cur
             indent_cm = 1.0 + (item['level'] * 0.8)
             para = doc.add_paragraph()
             para.paragraph_format.left_indent = Cm(indent_cm)
-            para.paragraph_format.first_line_indent = Cm(-0.4)
+            para.paragraph_format.first_line_indent = Cm(-0.5)
             para.paragraph_format.space_after = Pt(2)
             para.paragraph_format.space_before = Pt(1)
 
-            # Add bullet character + text with bold handling
+            # Add bullet character + text with bold/italic handling
             _add_formatted_run(para, '\u2022  ', text, font_size=Pt(11))
 
         elif item['type'] == 'numbered':
             indent_cm = 1.0 + (item['level'] * 0.8)
             para = doc.add_paragraph()
             para.paragraph_format.left_indent = Cm(indent_cm)
+            para.paragraph_format.first_line_indent = Cm(-0.5)
             para.paragraph_format.space_after = Pt(2)
             para.paragraph_format.space_before = Pt(1)
 
-            _add_formatted_run(para, '', text, font_size=Pt(11))
+            num_str = item.get('num', '1.') + ' '
+            _add_formatted_run(para, num_str, text, font_size=Pt(11))
 
         else:
             # Regular text
@@ -256,17 +276,23 @@ def _add_formatted_run(para, prefix: str, text: str, font_size=None):
         if font_size:
             run.font.size = font_size
 
-    # Split text by bold markers and alternate between normal and bold
-    parts = re.split(r'(\*\*.+?\*\*)', text)
+    # Split text by bold and italic markers
+    parts = re.split(r'(\*\*.+?\*\*|\*.+?\*)', text)
     for part in parts:
         if part.startswith('**') and part.endswith('**'):
             run = para.add_run(part[2:-2])
             run.font.bold = True
+        elif part.startswith('*') and part.endswith('*'):
+            run = para.add_run(part[1:-1])
+            run.font.italic = True
         else:
-            run = para.add_run(part)
-        run.font.name = 'Arial'
-        if font_size:
-            run.font.size = font_size
+            if part:
+                run = para.add_run(part)
+        
+        if part:
+            run.font.name = 'Arial'
+            if font_size:
+                run.font.size = font_size
 
 
 def export_to_pdf(content: str, topic: str, grade_level: str, subject: str, curriculum_label: str = "") -> bytes:
@@ -314,10 +340,10 @@ def export_to_pdf(content: str, topic: str, grade_level: str, subject: str, curr
         level = item['level']
 
         if itype == 'empty':
-            pdf.ln(2)
+            pdf.ln(1) # Reduced from ln(2) to prevent excessive spacing
             continue
             
-        if raw_text.strip() in ('---', '----', '-----', '------'):
+        if itype == 'separator':
             y = pdf.get_y()
             pdf.set_draw_color(200, 200, 200)
             pdf.line(L_MARGIN, y, pdf.w - R_MARGIN, y)
@@ -332,6 +358,7 @@ def export_to_pdf(content: str, topic: str, grade_level: str, subject: str, curr
         # ---- Section headers: I. OBJECTIVES, II. CONTENT, etc. ----
         if itype in ('h1', 'section_header'):
             clean = re.sub(r'\*\*(.+?)\*\*', r'\1', safe_text)
+            clean = re.sub(r'(?<!\*)\*(?!\*)(.+?)(?<!\*)\*(?!\*)', r'\1', clean)
             pdf.ln(4)
             pdf.set_left_margin(L_MARGIN + 3)
             pdf.set_x(pdf.l_margin)
@@ -351,6 +378,7 @@ def export_to_pdf(content: str, topic: str, grade_level: str, subject: str, curr
         # ---- Sub headers: A. Preliminary Activities, B. Lesson Proper, etc. ----
         elif itype in ('h2', 'sub_header'):
             clean = re.sub(r'\*\*(.+?)\*\*', r'\1', safe_text)
+            clean = re.sub(r'(?<!\*)\*(?!\*)(.+?)(?<!\*)\*(?!\*)', r'\1', clean)
             pdf.ln(3)
             pdf.set_left_margin(L_MARGIN + 6)
             pdf.set_x(pdf.l_margin)
@@ -361,6 +389,7 @@ def export_to_pdf(content: str, topic: str, grade_level: str, subject: str, curr
         # ---- h3 sub-sub headers ----
         elif itype == 'h3':
             clean = re.sub(r'\*\*(.+?)\*\*', r'\1', safe_text)
+            clean = re.sub(r'(?<!\*)\*(?!\*)(.+?)(?<!\*)\*(?!\*)', r'\1', clean)
             pdf.set_left_margin(L_MARGIN + 10)
             pdf.set_x(pdf.l_margin)
             pdf.set_font("Helvetica", "B", 10)
@@ -372,12 +401,17 @@ def export_to_pdf(content: str, topic: str, grade_level: str, subject: str, curr
             pdf.set_left_margin(L_MARGIN + current_indent)
             pdf.set_x(pdf.l_margin)
             pdf.set_font("Helvetica", "", 10)
+            # Use - bullet as standard
             txt = "- " + safe_text
             try:
+                # Convert single asterisk to double underscore for FPDF markdown italics
+                txt = re.sub(r'(?<!\*)\*(?!\*)(.+?)(?<!\*)\*(?!\*)', r'__\1__', txt)
                 pdf.multi_cell(0, 5, txt, markdown=True)
             except Exception:
                 # Fallback if markdown parser fails
-                pdf.multi_cell(0, 5, re.sub(r'\*\*(.+?)\*\*', r'\1', txt))
+                clean_text = re.sub(r'\*\*(.+?)\*\*', r'\1', txt)
+                clean_text = re.sub(r'(?<!\*)\*(?!\*)(.+?)(?<!\*)\*(?!\*)', r'\1', clean_text)
+                pdf.multi_cell(0, 5, clean_text)
 
         # ---- Numbered items ----
         elif itype == 'numbered':
@@ -385,10 +419,16 @@ def export_to_pdf(content: str, topic: str, grade_level: str, subject: str, curr
             pdf.set_left_margin(L_MARGIN + current_indent)
             pdf.set_x(pdf.l_margin)
             pdf.set_font("Helvetica", "", 10)
+            num_str = item.get('num', '1.') + ' '
+            txt = num_str + safe_text
             try:
-                pdf.multi_cell(0, 5, safe_text, markdown=True)
+                # Convert single asterisk to double underscore for FPDF markdown italics
+                txt = re.sub(r'(?<!\*)\*(?!\*)(.+?)(?<!\*)\*(?!\*)', r'__\1__', txt)
+                pdf.multi_cell(0, 5, txt, markdown=True)
             except Exception:
-                pdf.multi_cell(0, 5, re.sub(r'\*\*(.+?)\*\*', r'\1', safe_text))
+                clean_text = re.sub(r'\*\*(.+?)\*\*', r'\1', txt)
+                clean_text = re.sub(r'(?<!\*)\*(?!\*)(.+?)(?<!\*)\*(?!\*)', r'\1', clean_text)
+                pdf.multi_cell(0, 5, clean_text)
 
         # ---- Regular text / paragraphs ----
         else:
@@ -397,9 +437,13 @@ def export_to_pdf(content: str, topic: str, grade_level: str, subject: str, curr
             pdf.set_x(pdf.l_margin)
             pdf.set_font("Helvetica", "", 10)
             try:
-                pdf.multi_cell(0, 5, safe_text, markdown=True)
+                # Convert single asterisk to double underscore for FPDF markdown italics
+                txt = re.sub(r'(?<!\*)\*(?!\*)(.+?)(?<!\*)\*(?!\*)', r'__\1__', safe_text)
+                pdf.multi_cell(0, 5, txt, markdown=True)
             except Exception:
-                pdf.multi_cell(0, 5, re.sub(r'\*\*(.+?)\*\*', r'\1', safe_text))
+                clean_text = re.sub(r'\*\*(.+?)\*\*', r'\1', safe_text)
+                clean_text = re.sub(r'(?<!\*)\*(?!\*)(.+?)(?<!\*)\*(?!\*)', r'\1', clean_text)
+                pdf.multi_cell(0, 5, clean_text)
                 
         # Reset margin back to normal after the block
         pdf.set_left_margin(L_MARGIN)
