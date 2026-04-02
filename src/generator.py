@@ -9,6 +9,8 @@ response parsing, and error handling.
 from langchain_openai import ChatOpenAI
 from langchain_core.output_parsers import StrOutputParser
 import re
+import time
+from functools import wraps
 
 from prompts import get_lesson_plan_prompt, get_topic_suggestion_prompt
 from config import OPENROUTER_API_BASE
@@ -22,6 +24,40 @@ REQUIRED_SECTIONS = {
     "V. ASSESSMENT": r"(?:V\.|5\.)\s*(?:ASSESSMENT|EVALUATION|FORMATIVE)",
     "VI. REFLECTION": r"(?:VI\.|6\.)\s*(?:REFLECTION|REMARKS)"
 }
+
+
+def retry_with_backoff(max_retries=3, initial_delay=2, backoff_multiplier=2.0):
+    """
+    Retry logic with exponential backoff for LLM generation.
+    Catches exceptions or dict responses indicating transient API failures.
+    """
+    def decorator(func):
+        @wraps(func)
+        def wrapper(*args, **kwargs):
+            delay = initial_delay
+            for attempt in range(max_retries + 1):
+                try:
+                    result = func(*args, **kwargs)
+                    # Check if result is a structured failure dict
+                    if isinstance(result, dict) and not result.get("success", True):
+                        error_msg = str(result.get("error", ""))
+                        # Do not retry on terminal/client errors
+                        if "401" in error_msg or "No OpenRouter API key found" in error_msg:
+                            return result
+                        
+                        if attempt < max_retries:
+                            time.sleep(delay)
+                            delay *= backoff_multiplier
+                            continue
+                    return result
+                except Exception as e:
+                    if attempt == max_retries:
+                        raise e
+                    time.sleep(delay)
+                    delay *= backoff_multiplier
+            return func(*args, **kwargs) # Should not be reached
+        return wrapper
+    return decorator
 
 
 def initialize_llm(api_key: str, model: str):
@@ -165,6 +201,7 @@ def generate_topic_suggestions(
 
 
 @intelligent_cache(endpoint="lesson_plan", cache_type="sqlite")
+@retry_with_backoff(max_retries=3, initial_delay=2, backoff_multiplier=2.0)
 def generate_lesson_plan(
     grade_level: str,
     subject: str,
