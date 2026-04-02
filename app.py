@@ -24,7 +24,7 @@ from utils import export_to_docx, export_to_pdf, export_quiz_to_csv
 from config import (
     GRADE_LEVELS, SUBJECTS, LANGUAGES, 
     DEFAULT_MODEL,
-    APP_TITLE, APP_ICON, APP_EMOJI, APP_VERSION,
+    APP_TITLE, APP_ICON, APP_EMOJI, __version__,
     CURRICULUM_VERSIONS, MATATAG_SUBJECTS, MATATAG_HELPER_TEXT,
     CURRICULUM_ALIGNMENT_LABELS
 )
@@ -622,7 +622,7 @@ st.markdown("""
 
 _flag_html = f'<img src="data:image/png;base64,{_FLAG_B64}" style="height: 2.2rem; vertical-align: middle; margin-left: 0.5rem; border-radius: 3px; box-shadow: 0 1px 4px rgba(0,0,0,0.15);" />' if _FLAG_B64 else APP_EMOJI
 st.markdown(f'<p class="main-header">{APP_TITLE} {_flag_html}</p>', unsafe_allow_html=True)
-st.markdown(f'<p class="sub-header">AI-Enhanced Lesson Plan Generator for Philippine K-12 Educators &nbsp;|&nbsp; v{APP_VERSION}</p>', unsafe_allow_html=True)
+st.markdown(f'<p class="sub-header">AI-Enhanced Lesson Plan Generator for Philippine K-12 Educators &nbsp;|&nbsp; v{__version__}</p>', unsafe_allow_html=True)
 
 st.markdown("""
 Generate DepEd-aligned lesson plans and quizzes in seconds.  
@@ -785,7 +785,7 @@ with st.sidebar:
             st.rerun()
 
     st.divider()
-    st.caption(f"Built with love for Philippine educators | {APP_VERSION}")
+    st.caption(f"Built with love for Philippine educators | {__version__}")
 
 col1, col2, col3 = st.columns([1, 2, 1])
 with col2:
@@ -981,7 +981,7 @@ if st.session_state.generated_plan:
 
 st.markdown(f"""
 <div class="footer">
-    EduPlan PH {APP_VERSION} &nbsp;|&nbsp; Built with Streamlit, LangChain &nbsp;|&nbsp;
+    EduPlan PH {__version__} &nbsp;|&nbsp; Built with Streamlit, LangChain &nbsp;|&nbsp;
     Designed to empower Philippine educators
 </div>
 """, unsafe_allow_html=True)
