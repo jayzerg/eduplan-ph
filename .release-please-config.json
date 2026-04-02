@@ -1,10 +1,8 @@
 {
+  "bootstrap-sha": "",
   "packages": {
     ".": {
-      "release-type": "python",
-      "extra-files": [
-        "src/config.py"
-      ]
+      "changelog-path": "CHANGELOG.md"
     }
   }
 }
