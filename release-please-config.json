@@ -2,6 +2,7 @@
   "bootstrap-sha": "",
   "packages": {
     ".": {
+      "release-type": "python",
       "changelog-path": "CHANGELOG.md"
     }
   }
