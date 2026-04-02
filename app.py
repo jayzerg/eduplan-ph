@@ -12,6 +12,9 @@ import base64
 import html
 from datetime import datetime
 from PIL import Image
+import threading
+import time
+from streamlit.runtime.scriptrunner import add_script_run_ctx
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'src'))
 
@@ -46,6 +49,48 @@ def _flag_b64():
     with open(_flag_path, 'rb') as f:
         return base64.b64encode(f.read()).decode()
 _FLAG_B64 = _flag_b64() if os.path.exists(_flag_path) else None
+
+def run_with_progress(task_func, task_args, task_kwargs, text, total_time=10):
+    """
+    Run a blocking task while updating a progress bar up to 90%.
+    """
+    progress_bar = st.progress(0)
+    status_text = st.empty()
+    status_text.markdown(f"*{text}*")
+    
+    stop_event = threading.Event()
+    result_container = []
+    
+    def simulate_progress():
+        progress = 0.0
+        increment = 90.0 / (total_time * 10.0)
+        while not stop_event.is_set() and progress < 90:
+            time.sleep(0.1)
+            progress += increment
+            if progress > 90:
+                progress = 90.0
+            progress_bar.progress(int(progress))
+            
+        while not stop_event.is_set():
+            time.sleep(0.1)
+            
+        progress_bar.progress(100)
+        time.sleep(0.15)
+        progress_bar.empty()
+        status_text.empty()
+        
+    t = threading.Thread(target=simulate_progress)
+    add_script_run_ctx(t)
+    t.start()
+    
+    try:
+        res = task_func(*task_args, **task_kwargs)
+        result_container.append(res)
+    finally:
+        stop_event.set()
+        t.join()
+        
+    return result_container[0]
 
 
 st.markdown("""
@@ -664,18 +709,22 @@ with st.sidebar:
         if not api_key:
             st.error("API Key missing.")
         else:
-            with st.spinner("Thinking..."):
-                # Use default model for fast suggestions
-                suggestion_result = generate_topic_suggestions(
-                    grade_level=grade_level,
-                    subject=subject,
-                    api_key=api_key,
-                    model=DEFAULT_MODEL
-                )
-                if suggestion_result["success"]:
-                    st.session_state.topic_suggestions = suggestion_result["suggestions"]
-                else:
-                    st.error(f"Failed: {suggestion_result['error']}")
+            suggestion_result = run_with_progress(
+                task_func=generate_topic_suggestions,
+                task_args=(),
+                task_kwargs={
+                    "grade_level": grade_level,
+                    "subject": subject,
+                    "api_key": api_key,
+                    "model": DEFAULT_MODEL
+                },
+                text="Analyzing curriculum and brainstorming topics...",
+                total_time=3
+            )
+            if suggestion_result["success"]:
+                st.session_state.topic_suggestions = suggestion_result["suggestions"]
+            else:
+                st.error(f"Failed: {suggestion_result['error']}")
 
     if "topic_suggestions" in st.session_state and st.session_state.topic_suggestions:
         st.caption("Suggested Topics (Click to select):")
@@ -763,23 +812,28 @@ if generate_clicked:
                 )
                 effective_curriculum = "K-12 Standard"
 
-            with st.spinner("Generating your lesson plan... This usually takes 5-15 seconds."):
-                start_time = datetime.now()
+        start_time = datetime.now()
 
-                result = generate_lesson_plan(
-                    grade_level=grade_level,
-                    subject=subject,
-                    topic=topic,
-                    language=language,
-                    additional_notes=additional_notes,
-                    api_key=api_key,
-                    model=model,
-                    curriculum_version=effective_curriculum
-                )
+        result = run_with_progress(
+            task_func=generate_lesson_plan,
+            task_args=(),
+            task_kwargs={
+                "grade_level": grade_level,
+                "subject": subject,
+                "topic": topic,
+                "language": language,
+                "additional_notes": additional_notes,
+                "api_key": api_key,
+                "model": model,
+                "curriculum_version": effective_curriculum
+            },
+            text="Generating your lesson plan... Formulating structure and content.",
+            total_time=8
+        )
 
-                elapsed = (datetime.now() - start_time).total_seconds()
-                st.session_state.generated_plan = result
-                st.session_state.generation_time = elapsed
+        elapsed = (datetime.now() - start_time).total_seconds()
+        st.session_state.generated_plan = result
+        st.session_state.generation_time = elapsed
 
 if st.session_state.generated_plan:
     result = st.session_state.generated_plan
