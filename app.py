@@ -841,6 +841,15 @@ with col2:
 if generate_clicked:
     api_key, key_debug = get_api_key_for_provider()
     
+    # Determine effective curriculum version (with fallback logic)
+    effective_curriculum = st.session_state.curriculum_version
+    if effective_curriculum == "MATATAG Pilot" and subject not in MATATAG_SUBJECTS:
+        st.warning(
+            f"'{subject}' is not yet available under the MATATAG Pilot. "
+            "Switching to K-12 Standard for this request."
+        )
+        effective_curriculum = "K-12 Standard"
+    
     if not api_key:
         st.error("API key retrieval failed. Please check your .env file or secrets.")
         st.info(f"Debug: {key_debug['loaded_count']} keys loaded")
@@ -850,42 +859,33 @@ if generate_clicked:
         if not validation_result["valid"]:
             st.error(validation_result["message"])
         else:
-            # Fallback: if MATATAG selected but subject not covered, downgrade to K-12
-            effective_curriculum = st.session_state.curriculum_version
-            if effective_curriculum == "MATATAG Pilot" and subject not in MATATAG_SUBJECTS:
-                st.warning(
-                    f"'{subject}' is not yet available under the MATATAG Pilot. "
-                    "Switching to K-12 Standard for this request."
-                )
-                effective_curriculum = "K-12 Standard"
+            start_time = datetime.now()
 
-        start_time = datetime.now()
+            # Submit lesson plan generation to thread pool for concurrent processing
+            # This allows multiple users to generate lesson plans simultaneously without blocking
+            future = executor.submit(
+                generate_lesson_plan_concurrent,
+                grade_level=grade_level,
+                subject=subject,
+                topic=topic,
+                language=language,
+                additional_notes=additional_notes,
+                api_key=api_key,
+                model=model,
+                curriculum_version=effective_curriculum
+            )
+            
+            result = run_with_progress(
+                task_func=future.result,  # Wait for the future to complete
+                task_args=(),
+                task_kwargs={},
+                text="Generating your lesson plan... Formulating structure and content.",
+                total_time=8
+            )
 
-        # Submit lesson plan generation to thread pool for concurrent processing
-        # This allows multiple users to generate lesson plans simultaneously without blocking
-        future = executor.submit(
-            generate_lesson_plan_concurrent,
-            grade_level=grade_level,
-            subject=subject,
-            topic=topic,
-            language=language,
-            additional_notes=additional_notes,
-            api_key=api_key,
-            model=model,
-            curriculum_version=effective_curriculum
-        )
-        
-        result = run_with_progress(
-            task_func=future.result,  # Wait for the future to complete
-            task_args=(),
-            task_kwargs={},
-            text="Generating your lesson plan... Formulating structure and content.",
-            total_time=8
-        )
-
-        elapsed = (datetime.now() - start_time).total_seconds()
-        st.session_state.generated_plan = result
-        st.session_state.generation_time = elapsed
+            elapsed = (datetime.now() - start_time).total_seconds()
+            st.session_state.generated_plan = result
+            st.session_state.generation_time = elapsed
 
 if st.session_state.generated_plan:
     result = st.session_state.generated_plan
