@@ -1,4 +1,13 @@
 ```
+# Python
 __pycache__/
 *.pyc
+*.pyo
+*.pyd
+
+# Database
+eduplan_cache.db
+
+# Logs
+*.log
 ```
