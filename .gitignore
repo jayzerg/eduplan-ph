@@ -1,3 +1,5 @@
 ```
-.dockerignore
+# Configuration and release management
+.release-please-manifest.json
+release-please-config.json
 ```
