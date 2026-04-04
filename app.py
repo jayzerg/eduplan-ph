@@ -103,20 +103,44 @@ _FLAG_B64 = _flag_b64() if os.path.exists(_flag_path) else None
 def run_with_progress(task_func, task_args, task_kwargs, text, total_time=10):
     """
     Run a blocking task while updating a progress bar up to 90%.
+    Enhanced with milestone-based progress tracking for better user feedback.
     """
     progress_bar = st.progress(0)
     status_text = st.empty()
     status_text.markdown(f"*{text}*")
+    
+    # Define milestones for better progress indication
+    milestones = [
+        (0.1, "Initializing AI model..."),
+        (0.25, "Analyzing curriculum requirements..."),
+        (0.4, "Generating lesson objectives..."),
+        (0.55, "Creating content outline..."),
+        (0.7, "Developing learning procedures..."),
+        (0.85, "Preparing assessment materials..."),
+        (0.95, "Finalizing lesson plan..."),
+        (1.0, "Complete!")
+    ]
     
     stop_event = threading.Event()
     result_container = []
     
     def simulate_progress():
         progress = 0.0
+        milestone_idx = 0
         increment = 90.0 / (total_time * 10.0)
+        
         while not stop_event.is_set() and progress < 90:
             time.sleep(0.1)
             progress += increment
+            
+            # Update status text at milestones
+            if milestone_idx < len(milestones) - 1:
+                next_milestone_progress = milestones[milestone_idx + 1][0] * 100
+                if progress >= next_milestone_progress * 0.9:
+                    milestone_idx += 1
+                    if milestone_idx < len(milestones):
+                        status_text.markdown(f"*{milestones[milestone_idx][1]}*")
+            
             if progress > 90:
                 progress = 90.0
             progress_bar.progress(int(progress))
@@ -125,7 +149,8 @@ def run_with_progress(task_func, task_args, task_kwargs, text, total_time=10):
             time.sleep(0.1)
             
         progress_bar.progress(100)
-        time.sleep(0.15)
+        status_text.markdown("*✓ Generation complete!*")
+        time.sleep(0.3)
         progress_bar.empty()
         status_text.empty()
         
