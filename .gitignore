@@ -6,7 +6,7 @@ __pycache__/
 *.pyd
 
 # Database
-eduplan_cache.db
+*.db
 
 # Logs
 *.log

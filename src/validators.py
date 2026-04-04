@@ -312,3 +312,58 @@ def validate_inputs(topic: str, api_key: str) -> dict:
         "valid": True,
         "message": "All inputs valid."
     }
+
+
+def get_api_key_for_provider() -> tuple:
+    """
+    Retrieve the API key for the configured provider from environment variables.
+    
+    Returns:
+        Tuple of (api_key: str or None, debug_info: dict)
+        - api_key: The API key if found, None otherwise
+        - debug_info: Dictionary with debugging information about loaded keys
+    """
+    import os
+    
+    debug_info = {
+        "loaded_count": 0,
+        "providers_checked": ["OPENROUTER"],
+        "keys_found": []
+    }
+    
+    # Check for OpenRouter API key
+    openrouter_key = os.getenv("OPENROUTER_API_KEY", "").strip()
+    if openrouter_key:
+        debug_info["loaded_count"] += 1
+        debug_info["keys_found"].append("OPENROUTER")
+        return (openrouter_key, debug_info)
+    
+    return (None, debug_info)
+
+
+def get_available_api_keys() -> tuple:
+    """
+    Get all available API keys from environment variables.
+    
+    Returns:
+        Tuple of (available_keys: dict, debug_info: dict)
+        - available_keys: Dictionary mapping provider names to their API keys
+        - debug_info: Dictionary with debugging information
+    """
+    import os
+    
+    available_keys = {}
+    debug_info = {
+        "loaded_count": 0,
+        "providers_checked": ["OPENROUTER"],
+        "keys_found": []
+    }
+    
+    # Check for OpenRouter API key
+    openrouter_key = os.getenv("OPENROUTER_API_KEY", "").strip()
+    if openrouter_key:
+        available_keys["OPENROUTER_API_KEY"] = openrouter_key
+        debug_info["loaded_count"] += 1
+        debug_info["keys_found"].append("OPENROUTER")
+    
+    return (available_keys, debug_info)

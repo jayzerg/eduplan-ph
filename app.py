@@ -14,6 +14,7 @@ from datetime import datetime
 from PIL import Image
 import threading
 import time
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from streamlit.runtime.scriptrunner import add_script_run_ctx
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'src'))
@@ -32,6 +33,11 @@ from validators import validate_inputs, get_api_key_for_provider, get_available_
 from cache_manager import get_analytics, clear_all_cache
 
 load_dotenv()
+
+# ThreadPoolExecutor for concurrent request handling
+# Thread pool size based on typical server resources (CPU cores * 2 + 1 for I/O-bound tasks)
+MAX_WORKERS = min(32, (os.cpu_count() or 1) * 2 + 1)
+executor = ThreadPoolExecutor(max_workers=MAX_WORKERS, thread_name_prefix="eduplan_worker")
 
 # Load Philippine flag icon for page tab
 _flag_path = os.path.join(os.path.dirname(__file__), APP_ICON)
@@ -91,6 +97,47 @@ def run_with_progress(task_func, task_args, task_kwargs, text, total_time=10):
         t.join()
         
     return result_container[0]
+
+
+def generate_lesson_plan_concurrent(grade_level, subject, topic, language, additional_notes, api_key, model, curriculum_version):
+    """
+    Thread-safe wrapper for generate_lesson_plan to be executed in ThreadPoolExecutor.
+    Ensures proper error handling and logging for concurrent operations.
+    """
+    import logging
+    logger = logging.getLogger(__name__)
+    
+    thread_name = threading.current_thread().name
+    logger.info(f"[{thread_name}] Starting lesson plan generation for topic: {topic}")
+    
+    try:
+        result = generate_lesson_plan(
+            grade_level=grade_level,
+            subject=subject,
+            topic=topic,
+            language=language,
+            additional_notes=additional_notes,
+            api_key=api_key,
+            model=model,
+            curriculum_version=curriculum_version
+        )
+        
+        if result.get("success"):
+            logger.info(f"[{thread_name}] Successfully generated lesson plan for topic: {topic}")
+        else:
+            logger.warning(f"[{thread_name}] Lesson plan generation failed for topic {topic}: {result.get('error')}")
+        
+        return result
+        
+    except Exception as e:
+        logger.error(f"[{thread_name}] Exception during lesson plan generation for topic {topic}: {str(e)}")
+        return {
+            "success": False,
+            "error": f"Concurrent processing error: {str(e)}",
+            "content": "",
+            "structure_complete": False,
+            "missing_sections": []
+        }
 
 
 st.markdown("""
@@ -814,19 +861,24 @@ if generate_clicked:
 
         start_time = datetime.now()
 
+        # Submit lesson plan generation to thread pool for concurrent processing
+        # This allows multiple users to generate lesson plans simultaneously without blocking
+        future = executor.submit(
+            generate_lesson_plan_concurrent,
+            grade_level=grade_level,
+            subject=subject,
+            topic=topic,
+            language=language,
+            additional_notes=additional_notes,
+            api_key=api_key,
+            model=model,
+            curriculum_version=effective_curriculum
+        )
+        
         result = run_with_progress(
-            task_func=generate_lesson_plan,
+            task_func=future.result,  # Wait for the future to complete
             task_args=(),
-            task_kwargs={
-                "grade_level": grade_level,
-                "subject": subject,
-                "topic": topic,
-                "language": language,
-                "additional_notes": additional_notes,
-                "api_key": api_key,
-                "model": model,
-                "curriculum_version": effective_curriculum
-            },
+            task_kwargs={},
             text="Generating your lesson plan... Formulating structure and content.",
             total_time=8
         )
