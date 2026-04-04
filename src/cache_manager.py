@@ -3,58 +3,75 @@ import json
 import zlib
 import os
 import time
+import threading
 from datetime import datetime, timedelta
 import streamlit as st
 import hashlib
+from contextlib import contextmanager
 
 DB_PATH = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'eduplan_cache.db')
+
+# Thread-local storage for database connections
+_local = threading.local()
+_lock = threading.Lock()
+
+@contextmanager
+def get_db_connection():
+    """Thread-safe database connection context manager."""
+    conn = sqlite3.connect(DB_PATH, timeout=30.0)
+    conn.row_factory = sqlite3.Row
+    try:
+        yield conn
+    finally:
+        conn.close()
 
 def init_db():
     """Initialize the SQLite database for caching and metrics."""
     # Ensure directory exists
     os.makedirs(os.path.dirname(DB_PATH) or '.', exist_ok=True)
     
-    conn = sqlite3.connect(DB_PATH)
-    cursor = conn.cursor()
-    
-    # Cache table: stores compressed JSON responses
-    cursor.execute('''
-    CREATE TABLE IF NOT EXISTS cache (
-        cache_key TEXT PRIMARY KEY,
-        endpoint TEXT,
-        data_blob BLOB,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        expires_at TIMESTAMP,
-        access_count INTEGER DEFAULT 0
-    )
-    ''')
-    
-    # Metrics table: tracks hit/miss and latency for analytics
-    cursor.execute('''
-    CREATE TABLE IF NOT EXISTS metrics (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        endpoint TEXT,
-        cache_type TEXT,
-        hit BOOLEAN,
-        latency_ms REAL
-    )
-    ''')
-    
-    # Index for faster cache lookup and cleanup
-    cursor.execute('CREATE INDEX IF NOT EXISTS idx_cache_expires ON cache(expires_at)')
-    cursor.execute('CREATE INDEX IF NOT EXISTS idx_metrics_timestamp ON metrics(timestamp)')
-    
-    conn.commit()
-    conn.close()
+    with get_db_connection() as conn:
+        cursor = conn.cursor()
+        
+        # Cache table: stores compressed JSON responses
+        cursor.execute('''
+        CREATE TABLE IF NOT EXISTS cache (
+            cache_key TEXT PRIMARY KEY,
+            endpoint TEXT,
+            data_blob BLOB,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            expires_at TIMESTAMP,
+            access_count INTEGER DEFAULT 0
+        )
+        ''')
+        
+        # Metrics table: tracks hit/miss and latency for analytics
+        cursor.execute('''
+        CREATE TABLE IF NOT EXISTS metrics (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            endpoint TEXT,
+            cache_type TEXT,
+            hit BOOLEAN,
+            latency_ms REAL
+        )
+        ''')
+        
+        # Index for faster cache lookup and cleanup
+        cursor.execute('CREATE INDEX IF NOT EXISTS idx_cache_expires ON cache(expires_at)')
+        cursor.execute('CREATE INDEX IF NOT EXISTS idx_cache_key ON cache(cache_key)')
+        cursor.execute('CREATE INDEX IF NOT EXISTS idx_metrics_timestamp ON metrics(timestamp)')
+        cursor.execute('CREATE INDEX IF NOT EXISTS idx_metrics_endpoint ON metrics(endpoint)')
+        
+        conn.commit()
 
 # Initialize upon import
 init_db()
 
 def _compress(data_dict: dict) -> bytes:
-    """Serialize and compress a dictionary."""
+    """Serialize and compress a dictionary using zlib."""
     json_str = json.dumps(data_dict)
-    return zlib.compress(json_str.encode('utf-8'))
+    return zlib.compress(json_str.encode('utf-8'), level=6)
 
 def _decompress(compressed_data: bytes) -> dict:
     """Decompress and deserialize a dictionary."""
@@ -62,128 +79,144 @@ def _decompress(compressed_data: bytes) -> dict:
     return json.loads(json_str)
 
 def get_sqlite_cache(cache_key: str):
-    """Retrieve an item from the SQLite cache if it exists and is not expired."""
-    conn = sqlite3.connect(DB_PATH)
-    cursor = conn.cursor()
+    """Retrieve an item from the SQLite cache if it exists and is not expired.
     
-    cursor.execute('''
-        SELECT data_blob, expires_at FROM cache WHERE cache_key = ?
-    ''', (cache_key,))
-    
-    row = cursor.fetchone()
-    if not row:
-        conn.close()
-        return None
-        
-    data_blob, expires_at_str = row
-    
-    # Check expiration
-    if expires_at_str:
-        expires_at = datetime.fromisoformat(expires_at_str)
-        if datetime.now() > expires_at:
-            # Expired, delete it and return None
-            cursor.execute('DELETE FROM cache WHERE cache_key = ?', (cache_key,))
-            conn.commit()
-            conn.close()
-            return None
+    Thread-safe implementation with automatic TTL expiration checking and hit-count tracking.
+    """
+    with _lock:
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
             
-    # Update access count
-    cursor.execute('''
-        UPDATE cache SET access_count = access_count + 1 WHERE cache_key = ?
-    ''', (cache_key,))
-    conn.commit()
-    conn.close()
-    
-    return _decompress(data_blob)
+            cursor.execute('''
+                SELECT data_blob, expires_at FROM cache WHERE cache_key = ?
+            ''', (cache_key,))
+            
+            row = cursor.fetchone()
+            if not row:
+                return None
+                
+            data_blob, expires_at_str = row
+            
+            # Check expiration (TTL-based expiration system)
+            if expires_at_str:
+                expires_at = datetime.fromisoformat(expires_at_str)
+                if datetime.now() > expires_at:
+                    # Expired, delete it and return None
+                    cursor.execute('DELETE FROM cache WHERE cache_key = ?', (cache_key,))
+                    conn.commit()
+                    return None
+                    
+            # Update access count (hit-count tracking)
+            cursor.execute('''
+                UPDATE cache SET access_count = access_count + 1 WHERE cache_key = ?
+            ''', (cache_key,))
+            conn.commit()
+            
+            return _decompress(data_blob)
 
 def set_sqlite_cache(cache_key: str, endpoint: str, data_dict: dict, ttl_days: int = 30):
-    """Store an item in the SQLite cache with compression."""
-    conn = sqlite3.connect(DB_PATH)
-    cursor = conn.cursor()
+    """Store an item in the SQLite cache with compression.
     
-    expires_at = datetime.now() + timedelta(days=ttl_days)
-    compressed_data = _compress(data_dict)
-    
-    cursor.execute('''
-        INSERT OR REPLACE INTO cache (cache_key, endpoint, data_blob, expires_at, access_count)
-        VALUES (?, ?, ?, ?, ?)
-    ''', (cache_key, endpoint, compressed_data, expires_at.isoformat(), 0))
-    
-    conn.commit()
-    conn.close()
+    Thread-safe implementation with configurable TTL and compressed storage.
+    """
+    with _lock:
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            
+            expires_at = datetime.now() + timedelta(days=ttl_days)
+            compressed_data = _compress(data_dict)
+            
+            cursor.execute('''
+                INSERT OR REPLACE INTO cache (cache_key, endpoint, data_blob, expires_at, access_count)
+                VALUES (?, ?, ?, ?, ?)
+            ''', (cache_key, endpoint, compressed_data, expires_at.isoformat(), 0))
+            
+            conn.commit()
 
 def log_metric(endpoint: str, cache_type: str, hit: bool, latency_ms: float):
-    """Log performance metrics."""
-    conn = sqlite3.connect(DB_PATH)
-    cursor = conn.cursor()
+    """Log performance metrics for analytics.
     
-    cursor.execute('''
-        INSERT INTO metrics (endpoint, cache_type, hit, latency_ms)
-        VALUES (?, ?, ?, ?)
-    ''', (endpoint, cache_type, hit, latency_ms))
-    
-    conn.commit()
-    conn.close()
+    Thread-safe metric collection for hit rates, miss rates, and latency measurements.
+    """
+    with _lock:
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            
+            cursor.execute('''
+                INSERT INTO metrics (endpoint, cache_type, hit, latency_ms)
+                VALUES (?, ?, ?, ?)
+            ''', (endpoint, cache_type, hit, latency_ms))
+            
+            conn.commit()
 
 def cleanup_expired_cache():
-    """Remove expired cache entries to prevent memory bloat."""
-    conn = sqlite3.connect(DB_PATH)
-    cursor = conn.cursor()
+    """Remove expired cache entries to prevent database bloat.
     
-    now = datetime.now().isoformat()
-    cursor.execute('DELETE FROM cache WHERE expires_at < ?', (now,))
-    deleted = cursor.rowcount
-    
-    conn.commit()
-    conn.close()
-    return deleted
+    Thread-safe automatic cleanup of TTL-expired entries.
+    Returns the number of deleted entries.
+    """
+    with _lock:
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            
+            now = datetime.now().isoformat()
+            cursor.execute('DELETE FROM cache WHERE expires_at < ?', (now,))
+            deleted = cursor.rowcount
+            
+            conn.commit()
+            return deleted
 
 def clear_all_cache():
-    """Completely wipe both SQLite cache and st.cache_data."""
-    conn = sqlite3.connect(DB_PATH)
-    cursor = conn.cursor()
-    cursor.execute('DELETE FROM cache')
-    conn.commit()
-    conn.close()
+    """Completely wipe both SQLite cache and st.cache_data.
+    
+    Thread-safe full cache invalidation.
+    """
+    with _lock:
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute('DELETE FROM cache')
+            conn.commit()
     st.cache_data.clear()
 
 def get_analytics():
-    """Fetch aggregated cache analytics for the UI."""
-    conn = sqlite3.connect(DB_PATH)
-    cursor = conn.cursor()
+    """Fetch aggregated cache analytics for the UI.
     
-    # Total requests
-    cursor.execute('SELECT COUNT(*) FROM metrics')
-    total_requests = cursor.fetchone()[0]
-    
-    # Overall Hit Rate
-    cursor.execute('SELECT COUNT(*) FROM metrics WHERE hit = 1')
-    total_hits = cursor.fetchone()[0]
-    hit_rate = (total_hits / total_requests * 100) if total_requests > 0 else 0
-    
-    # Avg latency (cache vs live) - Lesson Plans
-    cursor.execute('SELECT AVG(latency_ms) FROM metrics WHERE endpoint = "lesson_plan" AND hit = 1')
-    avg_latency_cached = cursor.fetchone()[0] or 0
-    
-    cursor.execute('SELECT AVG(latency_ms) FROM metrics WHERE endpoint = "lesson_plan" AND hit = 0')
-    avg_latency_live = cursor.fetchone()[0] or 0
-    
-    # SQLite cache size breakdown
-    cursor.execute('SELECT COUNT(*), SUM(LENGTH(data_blob)) FROM cache')
-    cache_row = cursor.fetchone()
-    cache_items = cache_row[0] or 0
-    cache_bytes = cache_row[1] or 0
-    
-    conn.close()
-    
-    return {
-        "total_requests": total_requests,
-        "hit_rate_pct": hit_rate,
-        "avg_latency_cached_ms": avg_latency_cached,
-        "avg_latency_live_ms": avg_latency_live,
-        "sqlite_items": cache_items,
-        "sqlite_size_mb": cache_bytes / (1024 * 1024)
-    }
+    Thread-safe performance analytics including hit rates, miss rates, and latency measurements.
+    """
+    with _lock:
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            
+            # Total requests
+            cursor.execute('SELECT COUNT(*) FROM metrics')
+            total_requests = cursor.fetchone()[0]
+            
+            # Overall Hit Rate
+            cursor.execute('SELECT COUNT(*) FROM metrics WHERE hit = 1')
+            total_hits = cursor.fetchone()[0]
+            hit_rate = (total_hits / total_requests * 100) if total_requests > 0 else 0
+            
+            # Avg latency (cache vs live) - Lesson Plans
+            cursor.execute('SELECT AVG(latency_ms) FROM metrics WHERE endpoint = "lesson_plan" AND hit = 1')
+            avg_latency_cached = cursor.fetchone()[0] or 0
+            
+            cursor.execute('SELECT AVG(latency_ms) FROM metrics WHERE endpoint = "lesson_plan" AND hit = 0')
+            avg_latency_live = cursor.fetchone()[0] or 0
+            
+            # SQLite cache size breakdown
+            cursor.execute('SELECT COUNT(*), SUM(LENGTH(data_blob)) FROM cache')
+            cache_row = cursor.fetchone()
+            cache_items = cache_row[0] or 0
+            cache_bytes = cache_row[1] or 0
+            
+            return {
+                "total_requests": total_requests,
+                "hit_rate_pct": hit_rate,
+                "avg_latency_cached_ms": avg_latency_cached,
+                "avg_latency_live_ms": avg_latency_live,
+                "sqlite_items": cache_items,
+                "sqlite_size_mb": cache_bytes / (1024 * 1024)
+            }
 
 # -------------------------------------------------------------------------
 # Dynamic Routing Logic
@@ -207,6 +240,7 @@ def intelligent_cache(endpoint: str, cache_type: str = "sqlite", ttl_days: int =
     Decorator for intelligent dual-layer caching.
     :param endpoint: Identifier for logging (e.g., 'lesson_plan', 'topic_suggestions')
     :param cache_type: 'st' (Streamlit in-memory) or 'sqlite' (Persistent storage)
+    :param ttl_days: Time-to-live for cached items in days
     """
     def decorator(func):
         def wrapper(*args, **kwargs):
@@ -259,6 +293,15 @@ def intelligent_cache(endpoint: str, cache_type: str = "sqlite", ttl_days: int =
             is_success = isinstance(result, dict) and result.get("success", False)
             if is_success and cache_type == "sqlite":
                 set_sqlite_cache(cache_key, endpoint, result, ttl_days=ttl_days)
+                
+                # Trigger automatic cleanup occasionally (every 10th cache write)
+                # This prevents database bloat from expired entries
+                if hasattr(wrapper, '_call_count'):
+                    wrapper._call_count += 1
+                    if wrapper._call_count % 10 == 0:
+                        cleanup_expired_cache()
+                else:
+                    wrapper._call_count = 1
                 
             return result
             
