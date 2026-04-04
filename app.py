@@ -995,6 +995,8 @@ with st.sidebar:
     # Initialize topic in session state if not present
     if "topic_input_val" not in st.session_state:
         st.session_state.topic_input_val = ""
+    if "topic_widget" not in st.session_state:
+        st.session_state.topic_widget = ""
 
     def sync_topic():
         st.session_state.topic_input_val = st.session_state.topic_widget
@@ -1036,6 +1038,7 @@ with st.sidebar:
 
         def set_topic(suggestion):
             st.session_state.topic_input_val = suggestion
+            st.session_state.topic_widget = suggestion
             st.session_state.topic_suggestions = [] # Clear suggestions after selection
 
         for sug in st.session_state.topic_suggestions:
