@@ -1,0 +1,77 @@
+# EduPlan PH - Docker Compose Configuration
+# Manages containerized Streamlit application with persistent storage
+
+version: '3.8'
+
+services:
+  eduplan-ph:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: production
+    container_name: eduplan-ph-app
+    restart: unless-stopped
+    
+    # Port mapping: Host port 8501 -> Container port 8501
+    ports:
+      - "8501:8501"
+    
+    # Environment variables
+    # Option 1: Load from .env file (recommended for production)
+    env_file:
+      - .env
+    # Option 2: Define inline (uncomment if not using .env file)
+    # environment:
+    #   - OPENROUTER_API_KEY=your-api-key-here
+    #   - STREAMLIT_SERVER_PORT=8501
+    #   - STREAMLIT_SERVER_ADDRESS=0.0.0.0
+    
+    # Volume mounts for persistent data
+    volumes:
+      # Mount cache database directory for persistence across container restarts
+      - eduplan_cache_data:/app
+      # Optional: Mount local .env file for development
+      # - ./.env:/app/.env:ro
+    
+    # Network configuration
+    networks:
+      - eduplan-network
+    
+    # Resource limits (optional, adjust based on your needs)
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 2G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
+    
+    # Health check
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8501/_stcore/health')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    
+    # Logging configuration
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+# Named volumes for data persistence
+volumes:
+  eduplan_cache_data:
+    driver: local
+    name: eduplan-ph-cache-data
+    # Optional: Specify external volume
+    # external: true
+
+# Network configuration
+networks:
+  eduplan-network:
+    driver: bridge
+    name: eduplan-ph-network
