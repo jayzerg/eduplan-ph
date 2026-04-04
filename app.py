@@ -10,6 +10,8 @@ import sys
 import re
 import base64
 import html
+import atexit
+import bleach
 from datetime import datetime
 from PIL import Image
 import threading
@@ -38,6 +40,48 @@ load_dotenv()
 # Thread pool size based on typical server resources (CPU cores * 2 + 1 for I/O-bound tasks)
 MAX_WORKERS = min(32, (os.cpu_count() or 1) * 2 + 1)
 executor = ThreadPoolExecutor(max_workers=MAX_WORKERS, thread_name_prefix="eduplan_worker")
+
+def _cleanup_executor():
+    """Shutdown the thread pool executor gracefully on exit."""
+    executor.shutdown(wait=True)
+
+atexit.register(_cleanup_executor)
+
+# HTML sanitization configuration for bleach
+# Allow safe HTML tags commonly used in lesson plans while preventing XSS attacks
+ALLOWED_TAGS = [
+    'p', 'br', 'strong', 'em', 'u', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
+    'ul', 'ol', 'li', 'blockquote', 'code', 'pre', 'hr', 'div', 'span'
+]
+ALLOWED_ATTRS = {
+    '*': ['class'],  # Removed 'style' to avoid CSS injection - use classes instead
+    'a': ['href', 'title'],
+    'img': ['src', 'alt', 'title']
+}
+
+def sanitize_html_content(html_string: str) -> str:
+    """
+    Sanitize HTML content to prevent XSS attacks while preserving formatting.
+    
+    Args:
+        html_string: Raw HTML string that may contain unsafe content
+        
+    Returns:
+        Sanitized HTML string with dangerous tags and attributes removed
+    """
+    # First, completely remove script, style, and other dangerous tags with their content
+    # This regex removes the entire tag and its content
+    dangerous_pattern = r'<(script|style|iframe|object|embed|form|input|textarea|select|button|meta|link|base)[^>]*>.*?</\1>|<(script|style|iframe|object|embed|form|input|textarea|select|button|meta|link|base)[^>]*/?>'
+    html_string = re.sub(dangerous_pattern, '', html_string, flags=re.IGNORECASE | re.DOTALL)
+    
+    # Then use bleach to clean remaining content with allowed tags
+    return bleach.clean(
+        html_string,
+        tags=ALLOWED_TAGS,
+        attributes=ALLOWED_ATTRS,
+        strip=True,  # Strip disallowed tags entirely
+        strip_comments=True  # Remove HTML comments which can contain sensitive info
+    )
 
 # Load Philippine flag icon for page tab
 _flag_path = os.path.join(os.path.dirname(__file__), APP_ICON)
@@ -1238,6 +1282,9 @@ if st.session_state.generated_plan:
             html_content,
             flags=re.DOTALL
         )
+
+        # Sanitize HTML content to prevent XSS attacks before rendering
+        html_content = sanitize_html_content(html_content)
 
         # Render inside the styled document container
         st.markdown(
