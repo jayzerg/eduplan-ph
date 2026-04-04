@@ -35,11 +35,67 @@ EduPlan PH uses AI to generate complete, submission-ready lesson plans that:
 
 ## Installation
 
-### Prerequisites
+### Option 1: Docker (Recommended)
+
+#### Prerequisites
+- Docker and Docker Compose installed on your system
+- An OpenRouter API key (free at [openrouter.ai/keys](https://openrouter.ai/keys))
+
+#### Quick Start with Docker
+
+```bash
+# Clone the repository
+git clone https://github.com/yourusername/eduplan-ph.git
+cd eduplan-ph
+
+# Copy environment template and configure API key
+cp .env.template .env
+# Edit .env and add your OPENROUTER_API_KEY
+
+# Build and run with Docker Compose
+docker compose up --build -d
+
+# View logs
+docker compose logs -f
+
+# Access the application at http://localhost:8501
+```
+
+#### Docker Commands Reference
+
+```bash
+# Start the application
+docker compose up -d
+
+# Stop the application
+docker compose down
+
+# Rebuild after code changes
+docker compose up --build -d
+
+# View logs
+docker compose logs -f
+
+# Access container shell for debugging
+docker compose exec eduplan-ph /bin/bash
+
+# Clean up volumes (removes cached data)
+docker compose down -v
+```
+
+**Data Persistence:** The SQLite cache is stored in a Docker volume (`eduplan_cache_data`) to persist across container restarts. To reset the cache, run `docker compose down -v`.
+
+For detailed Docker setup instructions, see [docs/DOCKER_SETUP.md](docs/DOCKER_SETUP.md).
+
+---
+
+### Option 2: Manual Installation
+
+#### Prerequisites
 - Python 3.8 or higher
 - An OpenRouter API key (free at [openrouter.ai/keys](https://openrouter.ai/keys))
 
-### Setup
+#### Setup
 
 ```bash
 # Clone the repository
@@ -54,7 +110,7 @@ source venv/bin/activate  # Windows: venv\Scripts\activate
 pip install -r requirements.txt
 
 # Configure API key
-cp .env.example .env
+cp .env.template .env
 # Edit .env and add your OPENROUTER_API_KEY
 
 # Run the application
@@ -82,7 +138,13 @@ eduplan-ph/
 │   └── validators.py       # Input validation
 ├── assets/                 # Images and static resources
 ├── tests/                  # Unit tests
+├── docs/                   # Documentation
+│   └── DOCKER_SETUP.md     # Detailed Docker setup guide
 ├── requirements.txt        # Python dependencies
+├── Dockerfile              # Docker container configuration
+├── docker-compose.yml      # Docker Compose orchestration
+├── .dockerignore           # Files to exclude from Docker build
+├── .env.template           # Environment variables template
 └── README.md               # This file
 ```
 
