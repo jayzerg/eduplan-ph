@@ -664,6 +664,264 @@ st.markdown("""
         background: linear-gradient(135deg, #0D7377 0%, #14919B 100%);
         box-shadow: 0 2px 6px rgba(13, 115, 119, 0.2);
     }
+
+    /* ═══════════════════════════════════════════════════════
+       RESPONSIVE DESIGN — Adaptive Layout for All Devices
+       ═══════════════════════════════════════════════════════ */
+    
+    /* ── Large Desktop (≥1440px) ─────────────────────────── */
+    @media (min-width: 1440px) {
+        .main-header {
+            font-size: 3.2rem !important;
+        }
+        .sub-header {
+            font-size: 1.2rem !important;
+        }
+        .lesson-plan-doc {
+            padding: 3rem 4rem !important;
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        .stButton > button {
+            font-size: 1rem !important;
+            padding: 0.8rem 2.5rem !important;
+        }
+    }
+
+    /* ── Standard Desktop/Laptop (992px - 1439px) ────────── */
+    @media (max-width: 1439px) and (min-width: 992px) {
+        .main-header {
+            font-size: 2.6rem !important;
+        }
+        .sub-header {
+            font-size: 1rem !important;
+        }
+        .lesson-plan-doc {
+            padding: 2.2rem 2.5rem !important;
+        }
+    }
+
+    /* ── Small Laptop/Tablet Landscape (768px - 991px) ───── */
+    @media (max-width: 991px) and (min-width: 768px) {
+        .main-header {
+            font-size: 2.2rem !important;
+        }
+        .sub-header {
+            font-size: 0.95rem !important;
+        }
+        .lesson-plan-doc {
+            padding: 1.8rem 2rem !important;
+        }
+        .stButton > button {
+            font-size: 0.85rem !important;
+            padding: 0.65rem 1.5rem !important;
+        }
+        section[data-testid="stSidebar"] {
+            font-size: 0.9rem !important;
+        }
+    }
+
+    /* ── Tablet Portrait (576px - 767px) ─────────────────── */
+    @media (max-width: 767px) and (min-width: 576px) {
+        .main-header {
+            font-size: 1.9rem !important;
+        }
+        .main-header::after {
+            width: 50px !important;
+        }
+        .sub-header {
+            font-size: 0.88rem !important;
+            margin-bottom: 1.2rem !important;
+        }
+        .lesson-plan-doc {
+            padding: 1.5rem 1.5rem !important;
+        }
+        .lesson-plan-doc h2 {
+            font-size: 1.2rem !important;
+        }
+        .lesson-plan-doc h3 {
+            font-size: 1rem !important;
+        }
+        .stButton > button {
+            font-size: 0.82rem !important;
+            padding: 0.6rem 1.2rem !important;
+        }
+        section[data-testid="stSidebar"] {
+            font-size: 0.85rem !important;
+        }
+        .footer {
+            font-size: 0.75rem !important;
+        }
+    }
+
+    /* ── Mobile Phone (< 576px) ──────────────────────────── */
+    @media (max-width: 575px) {
+        /* Adjust main container padding */
+        .main .block-container {
+            padding-top: 2rem !important;
+            padding-left: 1rem !important;
+            padding-right: 1rem !important;
+        }
+
+        /* Scale down headers */
+        .main-header {
+            font-size: 1.6rem !important;
+            margin-bottom: 0.2rem !important;
+        }
+        .main-header::after {
+            width: 40px !important;
+            height: 2px !important;
+            margin-top: 0.4rem !important;
+        }
+        .sub-header {
+            font-size: 0.8rem !important;
+            margin-bottom: 1rem !important;
+            line-height: 1.4 !important;
+        }
+
+        /* Adjust lesson plan document */
+        .lesson-plan-doc {
+            padding: 1.2rem 1rem !important;
+            border-radius: 6px !important;
+        }
+        .lesson-plan-doc h2 {
+            font-size: 1.1rem !important;
+            margin-top: 1.5rem !important;
+            margin-bottom: 0.5rem !important;
+        }
+        .lesson-plan-doc h3 {
+            font-size: 0.95rem !important;
+            margin-top: 1.2rem !important;
+        }
+        .lesson-plan-doc h4 {
+            font-size: 0.9rem !important;
+        }
+        .lesson-plan-doc p,
+        .lesson-plan-doc li {
+            font-size: 0.9rem !important;
+            line-height: 1.6 !important;
+        }
+        .lesson-plan-doc ul,
+        .lesson-plan-doc ol {
+            margin-left: 1rem !important;
+            padding-left: 0.5rem !important;
+        }
+
+        /* Compact buttons for touch */
+        .stButton > button {
+            font-size: 0.8rem !important;
+            padding: 0.55rem 1rem !important;
+            min-height: 44px !important;
+        }
+        .stDownloadButton > button {
+            font-size: 0.78rem !important;
+            padding: 0.5rem 0.9rem !important;
+        }
+
+        /* Sidebar adjustments */
+        section[data-testid="stSidebar"] {
+            font-size: 0.8rem !important;
+        }
+        section[data-testid="stSidebar"] .stSelectbox > div > div,
+        section[data-testid="stSidebar"] .stTextInput > div > div > input,
+        section[data-testid="stSidebar"] .stTextArea > div > div > textarea {
+            font-size: 0.85rem !important;
+            padding: 0.4rem !important;
+        }
+        section[data-testid="stSidebar"] .stButton > button {
+            font-size: 0.78rem !important;
+            padding: 0.5rem 0.8rem !important;
+            min-height: 40px !important;
+        }
+
+        /* Badges scale down */
+        .matatag-badge,
+        .matatag-badge-sidebar {
+            font-size: 0.62rem !important;
+            padding: 0.25rem 0.6rem !important;
+        }
+        .curriculum-badge {
+            font-size: 0.7rem !important;
+            padding: 0.3rem 0.8rem !important;
+        }
+
+        /* Footer compact */
+        .footer {
+            font-size: 0.7rem !important;
+            margin-top: 2rem !important;
+            padding-top: 1rem !important;
+        }
+        .footer::before {
+            width: 60px !important;
+            margin-bottom: 0.8rem !important;
+        }
+
+        /* Expanders more compact */
+        [data-testid="stExpander"] {
+            border-radius: 6px !important;
+        }
+        [data-testid="stExpander"] summary {
+            font-size: 0.9rem !important;
+            padding: 0.5rem !important;
+        }
+
+        /* Ensure touch targets are accessible */
+        .stSelectbox > div > div,
+        .stTextInput > div > div > input,
+        .stTextArea > div > div > textarea,
+        button,
+        a {
+            min-height: 44px !important;
+        }
+    }
+
+    /* ── Extra Small Mobile (< 375px) ────────────────────── */
+    @media (max-width: 374px) {
+        .main-header {
+            font-size: 1.4rem !important;
+        }
+        .sub-header {
+            font-size: 0.75rem !important;
+        }
+        .lesson-plan-doc {
+            padding: 1rem 0.8rem !important;
+        }
+        .lesson-plan-doc p,
+        .lesson-plan-doc li {
+            font-size: 0.85rem !important;
+        }
+    }
+
+    /* ── Print Styles ────────────────────────────────────── */
+    @media print {
+        .stApp > *:not(.lesson-plan-doc),
+        section[data-testid="stSidebar"],
+        .stButton,
+        .stDownloadButton,
+        .footer {
+            display: none !important;
+        }
+        .lesson-plan-doc {
+            box-shadow: none !important;
+            border: none !important;
+            padding: 0 !important;
+            max-width: 100% !important;
+        }
+        body {
+            background: white !important;
+        }
+    }
+
+    /* ── Reduced Motion Preference ───────────────────────── */
+    @media (prefers-reduced-motion: reduce) {
+        *,
+        *::before,
+        *::after {
+            animation-duration: 0.01ms !important;
+            animation-iteration-count: 1 !important;
+            transition-duration: 0.01ms !important;
+        }
+    }
 </style>
 """, unsafe_allow_html=True)
 
