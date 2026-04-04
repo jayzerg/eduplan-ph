@@ -1,5 +1,12 @@
 ```
-# Configuration and release management
-.release-please-manifest.json
-release-please-config.json
+# Logs and temp files
+*.log
+
+# Environment
+.env
+.env.local
+*.env.*
+
+# Editors
+.vscode/
 ```
