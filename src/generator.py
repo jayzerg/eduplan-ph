@@ -30,6 +30,8 @@ def retry_with_backoff(max_retries=3, initial_delay=2, backoff_multiplier=2.0):
     """
     Retry logic with exponential backoff for LLM generation.
     Catches exceptions or dict responses indicating transient API failures.
+    Specifically handles rate limiting (429), connectivity issues, and server errors (5xx).
+    Avoids retrying on terminal/client errors like authentication failures (401).
     """
     def decorator(func):
         @wraps(func)
@@ -41,18 +43,29 @@ def retry_with_backoff(max_retries=3, initial_delay=2, backoff_multiplier=2.0):
                     # Check if result is a structured failure dict
                     if isinstance(result, dict) and not result.get("success", True):
                         error_msg = str(result.get("error", ""))
-                        # Do not retry on terminal/client errors
+                        # Do not retry on terminal/client errors (401, invalid API key)
                         if "401" in error_msg or "No OpenRouter API key found" in error_msg:
                             return result
                         
+                        # For other errors, retry if attempts remain
                         if attempt < max_retries:
                             time.sleep(delay)
                             delay *= backoff_multiplier
                             continue
                     return result
                 except Exception as e:
+                    error_str = str(e)
+                    
+                    # Check if this is a non-retryable error
+                    # 401 = authentication failure, should not retry
+                    if "401" in error_str and ("User not found" in error_str or "API Key" in error_str):
+                        raise e
+                    
+                    # For all other errors (429 rate limit, 5xx server errors, connectivity issues)
+                    # retry if attempts remain
                     if attempt == max_retries:
                         raise e
+                    
                     time.sleep(delay)
                     delay *= backoff_multiplier
             return func(*args, **kwargs) # Should not be reached
